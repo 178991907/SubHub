@@ -1,0 +1,31 @@
+{
+    "version": 2,
+    "framework": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "installCommand": "npm install",
+    "routes": [
+        {
+            "src": "/api/cron/(.*)",
+            "dest": "/api/cron/$1"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "/api/index"
+        }
+    ],
+    "functions": {
+        "api/index.ts": {
+            "runtime": "edge"
+        },
+        "api/cron/sync.ts": {
+            "maxDuration": 60
+        }
+    },
+    "crons": [
+        {
+            "path": "/api/cron/sync",
+            "schedule": "*/30 * * * *"
+        }
+    ]
+}
