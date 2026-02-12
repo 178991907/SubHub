@@ -445,9 +445,27 @@ function renderHomePage(
     }
     .message.success { background: #d4edda; color: #155724; display: block; }
     .message.error { background: #f8d7da; color: #721c24; display: block; }
+
+    .toast {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 12px 24px;
+      border-radius: 24px;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      font-size: 14px;
+    }
+    .toast.show { opacity: 1; }
   </style>
 </head>
 <body>
+  <div id="toast" class="toast"></div>
   <div class="header">
     <h1>👋 欢迎，${username}</h1>
     <div class="header-actions">
@@ -559,6 +577,15 @@ function renderHomePage(
     // 从 DOM 读取 URL，避免模板插值导致的 SyntaxError
     const SUBSCRIPTION_URL = document.getElementById('sub-url-data').value;
     
+    function showToast(message, duration = 2000) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, duration);
+    }
+
     // 生成二维码 (防抖 + 确保 DOM 加载)
     function generateQRCode() {
       const canvas = document.getElementById('qrcode-canvas');
@@ -611,8 +638,10 @@ function renderHomePage(
         const data = await res.json();
 
         if (data.success) {
-          alert('同步成功！发现 ' + data.count + ' 个节点');
-          window.location.reload();
+          showToast('同步成功！发现 ' + data.count + ' 个节点');
+          setTimeout(() => {
+             window.location.reload();
+          }, 1500);
         } else {
           alert('同步失败: ' + (data.error || '未知错误'));
           btn.textContent = originalText;
