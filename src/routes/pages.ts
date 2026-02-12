@@ -36,12 +36,12 @@ export function createPageRoutes() {
     // 检查登录状态
     const token = c.req.header('Cookie')?.match(/token=([^;]+)/)?.[1];
     if (!token) {
-      return c.redirect('/login');
+      return c.html(renderWelcomePage());
     }
 
     const payload = await verifyToken(token, env.AUTH_SECRET);
     if (!payload) {
-      return c.redirect('/login');
+      return c.html(renderWelcomePage());
     }
 
     // 获取用户数据
@@ -120,6 +120,201 @@ export function createPageRoutes() {
   });
 
   return pages;
+}
+
+// ==================== 页面模板 ====================
+
+/**
+ * 营销推广首页 (Welcome Page)
+ */
+function renderWelcomePage() {
+  return html`<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sub-Hub - 您的数字自由入口</title>
+  <style>
+    :root {
+      --primary: #8a2be2;
+      --secondary: #00d2ff;
+      --bg: #050505;
+      --card-bg: rgba(255, 255, 255, 0.05);
+      --text: #ffffff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+    .gradient-bg {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: radial-gradient(circle at 50% 50%, #1a1a2e 0%, #050505 100%);
+      z-index: -1;
+    }
+    .neon-circle {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      z-index: -1;
+      opacity: 0.4;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+    nav {
+      padding: 30px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo {
+      font-size: 24px;
+      font-weight: 800;
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero {
+      padding: 100px 0 60px;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: clamp(2.5rem, 8vw, 4.5rem);
+      font-weight: 900;
+      margin-bottom: 20px;
+      line-height: 1.1;
+      letter-spacing: -2px;
+    }
+    .hero p {
+      font-size: 20px;
+      color: #aaa;
+      max-width: 700px;
+      margin: 0 auto 40px;
+    }
+    .cta-button {
+      display: inline-block;
+      padding: 16px 40px;
+      background: linear-gradient(135deg, var(--primary) 0%, #6a11cb 100%);
+      color: white;
+      text-decoration: none;
+      border-radius: 50px;
+      font-weight: 700;
+      font-size: 18px;
+      transition: all 0.3s;
+      box-shadow: 0 10px 30px rgba(138, 43, 226, 0.4);
+    }
+    .cta-button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 15px 40px rgba(138, 43, 226, 0.6);
+    }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 30px;
+      padding: 60px 0;
+    }
+    .feature-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 40px;
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .feature-card:hover {
+      transform: translateY(-10px);
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--primary);
+    }
+    .feature-icon {
+      font-size: 40px;
+      margin-bottom: 20px;
+    }
+    .feature-card h3 {
+      font-size: 22px;
+      margin-bottom: 15px;
+    }
+    .feature-card p {
+      color: #999;
+      font-size: 15px;
+    }
+    .badge {
+      display: inline-block;
+      background: var(--secondary);
+      color: #000;
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      margin-left: 8px;
+    }
+    footer {
+      padding: 60px 0;
+      text-align: center;
+      color: #666;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    @media (max-width: 768px) {
+      .hero { padding: 60px 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="gradient-bg"></div>
+  <div class="neon-circle" style="width: 400px; height: 400px; background: var(--primary); top: -100px; right: -100px;"></div>
+  <div class="neon-circle" style="width: 300px; height: 300px; background: var(--secondary); bottom: -50px; left: -50px;"></div>
+
+  <div class="container">
+    <nav>
+      <div class="logo">Sub-Hub</div>
+      <a href="/login" class="cta-button" style="padding: 10px 25px; font-size: 14px;">立即登录</a>
+    </nav>
+
+    <section class="hero">
+      <h1>连接全球<br>开启数字自由之窗</h1>
+      <p>Sub-Hub 不仅仅是一个订阅同步工具，它是您通往无限资源、前沿 AI 与顶尖技术的专属门户。</p>
+      <a href="/login" class="cta-button">立即开启体验</a>
+    </section>
+
+    <section class="features">
+      <div class="feature-card">
+        <div class="feature-icon">📺</div>
+        <h3>全球英文动画 <span class="badge">实时</span></h3>
+        <p>与官方同步，实时更新。在线免费观看海外优质英文动画片，无需占用网盘空间，即开即播，为成长注入原生动力。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <h3>顶尖 AI 实验室 <span class="badge">免费</span></h3>
+        <p>集成 GPT-4o, Claude 3.5 等全球最强 AI 模型。无论是创意协作还是代码解析，在 Sub-Hub 均可免费无限量体验。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💻</div>
+        <h3>前沿开发方案 <span class="badge">生产力</span></h3>
+        <p>免费使用 Cursor 模式及最前沿的编程辅助工具。第一时间获取业界一手技术资讯与黑科技资源，走在时代最前沿。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔗</div>
+        <h3>极致订阅同步</h3>
+        <p>深度整合 Sub-Store。支持全平台订阅链接一键管理、自动同步与多端下发，让网络配置从此化繁为简。</p>
+      </div>
+    </section>
+
+    <footer>
+      <p>&copy; 2025 Sub-Hub 订阅管理平台. All rights reserved.</p>
+    </footer>
+  </div>
+</body>
+</html>`;
 }
 
 // ==================== 页面模板 ====================
