@@ -3,7 +3,7 @@
  * 使用单表 kv_store 模拟 KV 接口，保持与 Storage 接口完全兼容
  */
 import { neon } from '@neondatabase/serverless';
-import type { Storage } from '../storage';
+import type { Storage } from '../storage.js';
 
 export class NeonStorage implements Storage {
     private sql: ReturnType<typeof neon>;

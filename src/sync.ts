@@ -1,14 +1,14 @@
 /**
  * 核心同步逻辑 - 从 Sub-Store 拉取并解析订阅
  */
-import type { Storage, SyncResult, SyncLog } from './storage';
-import { STORAGE_KEYS } from './storage';
+import type { Storage, SyncResult, SyncLog } from './storage.js';
+import { STORAGE_KEYS } from './storage.js';
 import {
     parseNodeName,
     extractNodeNameFromUrl,
     isValidProxyUrl,
     getProtocolType,
-} from './utils/parse-node';
+} from './utils/parse-node.js';
 
 // 环境变量类型
 export interface SyncEnv {

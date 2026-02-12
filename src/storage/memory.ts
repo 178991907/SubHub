@@ -1,7 +1,7 @@
 /**
  * 内存存储实现 - 用于开发和测试
  */
-import type { Storage } from '../storage';
+import type { Storage } from '../storage.js';
 
 interface MemoryEntry {
     value: unknown;

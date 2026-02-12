@@ -3,8 +3,8 @@
  */
 import * as jose from 'jose';
 import type { Context, MiddlewareHandler } from 'hono';
-import type { Storage, User } from './storage';
-import { STORAGE_KEYS } from './storage';
+import type { Storage, User } from './storage.js';
+import { STORAGE_KEYS } from './storage.js';
 
 // 环境变量类型
 export interface AuthEnv {

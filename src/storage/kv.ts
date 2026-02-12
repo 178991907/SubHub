@@ -1,7 +1,7 @@
 /**
  * Cloudflare KV 存储实现
  */
-import type { Storage } from '../storage';
+import type { Storage } from '../storage.js';
 
 // Cloudflare KV 类型
 interface KVNamespace {
