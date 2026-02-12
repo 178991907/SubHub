@@ -303,6 +303,16 @@ function renderWelcomePage() {
         <p>免费使用 Cursor 模式及最前沿的编程辅助工具。第一时间获取业界一手技术资讯与黑科技资源，走在时代最前沿。</p>
       </div>
       <div class="feature-card">
+        <div class="feature-icon">📚</div>
+        <h3>全球教学教研资源</h3>
+        <p>汇聚全球顶尖英语教学大纲、教案课件与学术论文。为教师与研究者提供一键式资源获取通道，实时追踪国际前沿教学方法论。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎓</div>
+        <h3>学生互动学习中心</h3>
+        <p>专为学生打造的沉浸式英语学习环境。内置 AI 陪练、趣味互动练习与海量分级阅读材料，助力学生在真实语境中快速提升语言素养。</p>
+      </div>
+      <div class="feature-card">
         <div class="feature-icon">🔗</div>
         <h3>极致订阅同步</h3>
         <p>深度整合 Sub-Store。支持全平台订阅链接一键管理、自动同步与多端下发，让网络配置从此化繁为简。</p>
