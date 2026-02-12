@@ -88,6 +88,20 @@ export interface SubscriptionCollection {
     description?: string;          // 描述（可选）
 }
 
+// 网站通知配置
+export interface NotificationConfig {
+    login: {
+        enabled: boolean;
+        content: string; // 支持 HTML
+        type: 'info' | 'warning' | 'error'; // 通知类型
+    };
+    home: {
+        enabled: boolean;
+        content: string; // 支持 HTML (含图片)
+        title?: string;  // 弹窗标记/标题
+    };
+}
+
 // 存储键常量
 export const STORAGE_KEYS = {
     SYNC_RESULT: 'sync:result',
@@ -97,4 +111,5 @@ export const STORAGE_KEYS = {
     AUTO_SYNC_CONFIG: 'config:auto_sync',     // 自动同步配置
     SUBSTORE_CONFIG: 'config:substore',       // Sub-Store 配置
     MEMBERSHIP_CONFIG: 'config:membership',   // 会员等级配置
+    NOTIFICATION_CONFIG: 'config:notification', // 网站通知配置
 } as const;

@@ -3,7 +3,7 @@
  */
 import { Hono } from 'hono';
 import { html, raw } from 'hono/html';
-import type { Storage, SyncResult, User } from '../storage.js';
+import type { Storage, SyncResult, User, NotificationConfig } from '../storage.js';
 import { STORAGE_KEYS } from '../storage.js';
 import { verifyToken } from '../auth.js';
 import type { AuthEnv } from '../auth.js';
@@ -19,8 +19,11 @@ export function createPageRoutes() {
   /**
    * GET /login - 登录页面
    */
-  pages.get('/login', (c) => {
-    return c.html(renderLoginPage());
+  pages.get('/login', async (c) => {
+    const storage = c.get('storage');
+    // 获取通知配置
+    const notificationConfig = await storage.get<{ login: { enabled: boolean; content: string; type: string } }>(STORAGE_KEYS.NOTIFICATION_CONFIG);
+    return c.html(renderLoginPage(notificationConfig?.login));
   });
 
   /**
@@ -77,7 +80,11 @@ export function createPageRoutes() {
 
 
 
-    return c.html(renderHomePage(payload.sub, payload.isAdmin, user?.membershipLevel, syncResult, subscriptionUrl, env, collectionName));
+
+    // 获取通知配置
+    const notificationConfig = await storage.get<NotificationConfig>(STORAGE_KEYS.NOTIFICATION_CONFIG);
+
+    return c.html(renderHomePage(payload.sub, payload.isAdmin, user?.membershipLevel, syncResult, subscriptionUrl, env, collectionName, notificationConfig?.home));
   });
 
   /**
@@ -117,7 +124,11 @@ export function createPageRoutes() {
 
 // ==================== 页面模板 ====================
 
-function renderLoginPage() {
+function renderLoginPage(notification?: { enabled: boolean; content: string; type: string }) {
+  const notificationHtml = (notification?.enabled && notification?.content)
+    ? html`<div class="notification-alert ${notification.type}">${raw(notification.content)}</div>`
+    : '';
+
   return html`<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -191,11 +202,22 @@ function renderLoginPage() {
       margin-bottom: 20px;
       display: none;
     }
+    .notification-alert {
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .notification-alert.info { background: #e3f2fd; color: #0d47a1; border: 1px solid #bbdefb; }
+    .notification-alert.warning { background: #fff3e0; color: #e65100; border: 1px solid #ffe0b2; }
+    .notification-alert.error { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
   </style>
 </head>
 <body>
   <div class="login-card">
     <h1>🔐 Sub-Hub 订阅管理平台</h1>
+    ${notificationHtml}
     <div class="error" id="error"></div>
     <form id="loginForm">
       <div class="form-group">
@@ -247,7 +269,8 @@ function renderHomePage(
   syncResult: SyncResult | null,
   subscriptionUrl: string,
   env: Env,
-  collectionName: string
+  collectionName: string,
+  notification?: { enabled: boolean; content: string; title?: string }
 ) {
   const lastSync = syncResult?.lastSync
     ? new Date(syncResult.lastSync).toLocaleString('zh-CN')
@@ -455,6 +478,33 @@ function renderHomePage(
     }
     .message.success { background: #d4edda; color: #155724; display: block; }
     .message.error { background: #f8d7da; color: #721c24; display: block; }
+    
+    .notification-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+      border-left: 5px solid #667eea;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    .notification-card h3 {
+      margin-bottom: 15px;
+      font-size: 18px;
+      color: #333;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .notification-content {
+      font-size: 15px;
+      line-height: 1.6;
+      color: #555;
+    }
+    .notification-content img {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
 
     .toast {
       position: fixed;
@@ -486,6 +536,13 @@ function renderHomePage(
   </div>
   
   <div class="container">
+    ${(notification?.enabled && notification?.content) ? html`
+    <div class="notification-card">
+      ${notification.title ? html`<h3>📢 ${notification.title}</h3>` : ''}
+      <div class="notification-content">${raw(notification.content)}</div>
+    </div>
+    ` : ''}
+
     <div class="card">
       <h2 class="card-title">👤 用户信息</h2>
       <div class="user-info-grid">
@@ -998,6 +1055,9 @@ function renderAdminPage(
         <span>⚡ 快速操作</span>
       </div>
       <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button class="btn" onclick="openModal('notificationModal')">📢 网站通知配置</button>
+        <button class="btn" onclick="openModal('userModal')">➕ 添加用户</button>
+        <button class="btn" onclick="openModal('syncConfigModal')">⚙️ 自动同步配置</button>
         <button class="btn btn-success" onclick="syncAllUsers()">🔄 全局同步</button>
         <a href="/api/admin/export" class="btn" style="text-decoration: none;">📥 导出 CSV</a>
         <button class="btn" onclick="showAddUserModal()">➕ 添加用户</button>
@@ -1101,6 +1161,60 @@ function renderAdminPage(
     </div>
   </div>
   
+  <!-- 通知配置模态框 -->
+  <div class="modal" id="notificationModal">
+    <div class="modal-content" style="max-width: 600px;">
+      <h3 class="modal-title">📢 网站通知配置</h3>
+      <form id="notificationForm" onsubmit="saveNotificationConfig(event)">
+        <div style="display: flex; border-bottom: 1px solid #ddd; margin-bottom: 20px;">
+          <div class="tab-item active" onclick="switchTab(this, 'login-notify')" style="padding: 10px 20px; cursor: pointer; border-bottom: 2px solid #667eea; color: #667eea;">登录页通知</div>
+          <div class="tab-item" onclick="switchTab(this, 'home-notify')" style="padding: 10px 20px; cursor: pointer; border-bottom: 2px solid transparent;">首页公告</div>
+        </div>
+
+        <div id="login-notify" class="tab-content">
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="loginEnabled"> 启用登录页通知
+            </label>
+          </div>
+          <div class="form-group">
+            <label>通知类型</label>
+            <select id="loginType" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+              <option value="info">Info (蓝色)</option>
+              <option value="warning">Warning (黄色)</option>
+              <option value="error">Error (红色)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>通知内容 (支持 HTML)</label>
+            <textarea id="loginContent" rows="4"></textarea>
+          </div>
+        </div>
+
+        <div id="home-notify" class="tab-content" style="display: none;">
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="homeEnabled"> 启用首页公告
+            </label>
+          </div>
+          <div class="form-group">
+            <label>公告标题</label>
+            <input type="text" id="homeTitle" placeholder="例如：维护通知">
+          </div>
+          <div class="form-group">
+            <label>公告内容 (支持 HTML，可插入图片)</label>
+            <textarea id="homeContent" rows="6" placeholder="<p>内容...</p><img src='...'>"></textarea>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-danger" onclick="closeModal('notificationModal')">取消</button>
+          <button type="submit" class="btn">保存配置</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- 添加用户模态框 -->
   <div class="modal" id="addUserModal">
     <div class="modal-content">
@@ -1586,6 +1700,84 @@ function renderAdminPage(
       }
       setTimeout(function() { location.reload(); }, 2000);
     }
+    
+    // Tab 切换逻辑
+    function switchTab(el, targetId) {
+        document.querySelectorAll('.tab-item').forEach(t => {
+            t.style.borderBottomColor = 'transparent';
+            t.style.color = '#333';
+            t.classList.remove('active');
+        });
+        el.style.borderBottomColor = '#667eea';
+        el.style.color = '#667eea';
+        el.classList.add('active');
+
+        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+        document.getElementById(targetId).style.display = 'block';
+    }
+
+    // 加载通知配置
+    async function loadNotificationConfig() {
+        try {
+            const res = await fetch('/api/admin/config/notification');
+            const config = await res.json();
+            
+            // Login config
+            document.getElementById('loginEnabled').checked = config.login?.enabled;
+            document.getElementById('loginType').value = config.login?.type || 'info';
+            document.getElementById('loginContent').value = config.login?.content || '';
+
+            // Home config
+            document.getElementById('homeEnabled').checked = config.home?.enabled;
+            document.getElementById('homeTitle').value = config.home?.title || '';
+            document.getElementById('homeContent').value = config.home?.content || '';
+        } catch (e) {
+            showToast('加载通知配置失败', 'error');
+        }
+    }
+
+    // 保存通知配置
+    async function saveNotificationConfig(e) {
+        e.preventDefault();
+        const config = {
+            login: {
+                enabled: document.getElementById('loginEnabled').checked,
+                type: document.getElementById('loginType').value,
+                content: document.getElementById('loginContent').value
+            },
+            home: {
+                enabled: document.getElementById('homeEnabled').checked,
+                title: document.getElementById('homeTitle').value,
+                content: document.getElementById('homeContent').value
+            }
+        };
+
+        try {
+            const res = await fetch('/api/admin/config/notification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+            
+            if (res.ok) {
+                showToast('通知配置已保存', 'success');
+                closeModal('notificationModal');
+            } else {
+                showToast('保存失败', 'error');
+            }
+        } catch (e) {
+            showToast('网络错误', 'error');
+        }
+    }
+
+    // 打开模态框时如果是通知配置，加载数据
+    const originalOpenModal = window.openModal;
+    window.openModal = function(id) {
+        document.getElementById(id).classList.add('active');
+        if (id === 'notificationModal') {
+            loadNotificationConfig();
+        }
+    };
     
     // ===== 模态框工具 =====
     function closeModal(id) { document.getElementById(id).classList.remove('active'); }

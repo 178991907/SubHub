@@ -208,6 +208,36 @@ export function createAdminRoutes() {
     });
 
     /**
+     * GET /api/admin/config/notification - 获取通知配置
+     */
+    admin.get('/config/notification', async (c) => {
+        const storage = c.get('storage');
+        const config = await storage.get(STORAGE_KEYS.NOTIFICATION_CONFIG);
+        // 默认配置
+        const defaultConfig = {
+            login: { enabled: false, content: '', type: 'info' },
+            home: { enabled: false, content: '', title: '' }
+        };
+        return c.json(config || defaultConfig);
+    });
+
+    /**
+     * POST /api/admin/config/notification - 保存通知配置
+     */
+    admin.post('/config/notification', async (c) => {
+        const storage = c.get('storage');
+        const body = await c.req.json();
+
+        // 简单验证
+        if (!body.login || !body.home) {
+            return c.json({ error: '无效的配置格式' }, 400);
+        }
+
+        await storage.set(STORAGE_KEYS.NOTIFICATION_CONFIG, body);
+        return c.json({ success: true });
+    });
+
+    /**
      * GET /api/admin/export - 导出 CSV
      */
     admin.get('/export', async (c) => {
