@@ -262,7 +262,7 @@ function renderHomePage(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>订阅中心 - Sub-Store 同步平台</title>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdn.bootcdn.net/ajax/libs/qrcode/1.5.3/qrcode.min.js" onerror="alert('二维码库加载失败，请检查网络连接或更换网络环境')"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
