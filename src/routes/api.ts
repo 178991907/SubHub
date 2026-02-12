@@ -2,12 +2,12 @@
  * API 路由 - 认证、同步、订阅相关
  */
 import { Hono } from 'hono';
-import type { Storage, User } from '../storage';
-import { STORAGE_KEYS } from '../storage';
-import type { AuthEnv } from '../auth';
-import { login, authMiddleware } from '../auth';
-import type { SyncEnv } from '../sync';
-import { syncSubscription, getSyncResult, getSyncStatus } from '../sync';
+import type { Storage, User } from '../storage.js';
+import { STORAGE_KEYS } from '../storage.js';
+import type { AuthEnv } from '../auth.js';
+import { login, authMiddleware } from '../auth.js';
+import type { SyncEnv } from '../sync.js';
+import { syncSubscription, getSyncResult, getSyncStatus } from '../sync.js';
 
 // 环境变量类型
 type Env = AuthEnv & SyncEnv & { storage: Storage };
@@ -66,7 +66,7 @@ export function createApiRoutes() {
             return c.json({ authenticated: false });
         }
 
-        const { verifyToken } = await import('../auth');
+        const { verifyToken } = await import('../auth.js');
         const payload = await verifyToken(token, env.AUTH_SECRET);
 
         if (!payload) {
@@ -97,7 +97,7 @@ export function createApiRoutes() {
             return c.json({ error: '未登录' }, 401);
         }
 
-        const { verifyToken, hashPassword, verifyPassword } = await import('../auth');
+        const { verifyToken, hashPassword, verifyPassword } = await import('../auth.js');
         const payload = await verifyToken(token, env.AUTH_SECRET);
 
         if (!payload) {
@@ -190,7 +190,7 @@ export function createApiRoutes() {
             return c.json({ error: '未登录' }, 401);
         }
 
-        const { verifyToken } = await import('../auth');
+        const { verifyToken } = await import('../auth.js');
         const payload = await verifyToken(token, env.AUTH_SECRET);
 
         if (!payload) {
@@ -269,7 +269,7 @@ export function createApiRoutes() {
             return c.text('未登录', 401);
         }
 
-        const { verifyToken } = await import('../auth');
+        const { verifyToken } = await import('../auth.js');
         const payload = await verifyToken(token, env.AUTH_SECRET);
 
         if (!payload) {

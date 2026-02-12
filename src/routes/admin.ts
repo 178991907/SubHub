@@ -2,12 +2,12 @@
  * 管理员 API 路由
  */
 import { Hono } from 'hono';
-import type { Storage, User, SyncResult, AutoSyncConfig } from '../storage';
-import { STORAGE_KEYS } from '../storage';
-import type { AuthEnv } from '../auth';
-import { hashPassword, verifyToken } from '../auth';
-import type { SyncEnv } from '../sync';
-import { getAutoSyncConfig, setAutoSyncConfig, syncUserSubscription, syncAllUsers } from '../scheduler';
+import type { Storage, User, SyncResult, AutoSyncConfig } from '../storage.js';
+import { STORAGE_KEYS } from '../storage.js';
+import type { AuthEnv } from '../auth.js';
+import { hashPassword, verifyToken } from '../auth.js';
+import type { SyncEnv } from '../sync.js';
+import { getAutoSyncConfig, setAutoSyncConfig, syncUserSubscription, syncAllUsers } from '../scheduler.js';
 
 // 环境变量类型
 type Env = AuthEnv & SyncEnv & { storage: Storage };

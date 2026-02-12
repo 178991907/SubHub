@@ -3,12 +3,12 @@
  */
 import { Hono } from 'hono';
 import { html, raw } from 'hono/html';
-import type { Storage, SyncResult, User } from '../storage';
-import { STORAGE_KEYS } from '../storage';
-import { verifyToken } from '../auth';
-import type { AuthEnv } from '../auth';
-import type { SyncEnv } from '../sync';
-import { generateQRCodeSVG } from '../utils/qrcode';
+import type { Storage, SyncResult, User } from '../storage.js';
+import { STORAGE_KEYS } from '../storage.js';
+import { verifyToken } from '../auth.js';
+import type { AuthEnv } from '../auth.js';
+import type { SyncEnv } from '../sync.js';
+import { generateQRCodeSVG } from '../utils/qrcode.js';
 
 type Env = AuthEnv & SyncEnv & { storage: Storage };
 
