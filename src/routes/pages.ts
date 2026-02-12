@@ -481,11 +481,18 @@ function renderHomePage(
     
     <div class="card">
       <h2 class="card-title">📊 订阅统计</h2>
-      <div class="stats-grid">
+      <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 20px;">
         <div class="stat-item">
           <div class="stat-value">${syncResult?.nodeCount || 0}</div>
           <div class="stat-label">节点数量</div>
         </div>
+        <div class="stat-item">
+          <div class="stat-value">${syncResult?.totalRemainGB ? `${syncResult.totalRemainGB}GB` : 'N/A'}</div>
+          <div class="stat-label">剩余流量</div>
+        </div>
+      </div>
+      
+      <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
         <div class="stat-item">
           <div class="stat-value">${syncResult?.protocols?.vless || 0}</div>
           <div class="stat-label">VLESS</div>
@@ -501,10 +508,6 @@ function renderHomePage(
         <div class="stat-item">
           <div class="stat-value">${syncResult?.protocols?.vmess || 0}</div>
           <div class="stat-label">VMess</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value">${syncResult?.totalRemainGB ? `${syncResult.totalRemainGB}GB` : 'N/A'}</div>
-          <div class="stat-label">剩余流量</div>
         </div>
       </div>
     </div>
