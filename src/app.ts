@@ -18,6 +18,7 @@ import type { SyncEnv } from './sync';
 export interface Env extends AuthEnv, SyncEnv {
     KV?: KVNamespace;
     DATABASE_URL?: string;
+    VERCEL?: string;
 }
 
 // Cloudflare KV 类型定义
@@ -43,44 +44,93 @@ app.use('*', cors());
 
 // 健康检查路由 (无数据库依赖)
 app.get('/api/health', (c) => {
-    return c.json({ status: 'ok', runtime: typeof EdgeRuntime !== 'undefined' ? 'edge' : 'node' });
+    // 简单的健康检查，返回当前环境信息
+    return c.json({
+        status: 'ok',
+        runtime: typeof EdgeRuntime !== 'undefined' ? 'edge' : 'node',
+        isVercel: c.env?.VERCEL === '1'
+    });
 });
 
 // 初始化存储和环境变量中间件
 app.use('*', async (c, next) => {
+    let env: Partial<Env> = {};
+
     try {
-        // 增强的环境变量获取
-        const env = {
-            ...(typeof process !== 'undefined' ? (process.env || {}) : {}),
-            ...(c.env || {})
-        } as Env;
+        // 1. 安全合并环境变量
+        // 优先使用 c.env (Worker/Vercel Edge 注入)
+        env = { ...(c.env || {}) };
 
-        // 预检核心环境变量
-        const requiredEnv = ['AUTH_SECRET', 'ADMIN_USERNAME', 'ADMIN_PASSWORD'];
-        const missingEnv = requiredEnv.filter(k => !env[k as keyof Env]);
+        // 尝试合并 process.env (Node 兼容环境)
+        try {
+            if (typeof process !== 'undefined' && process.env) {
+                env = { ...process.env, ...env };
+            }
+        } catch { /* 忽略 process 访问错误 */ }
 
-        // 如果缺少配置或数据库，返回友好的引导页 (使用 200 状态码防止 Vercel 拦截 500 响应体)
-        if (typeof EdgeRuntime !== 'undefined' && (!env.DATABASE_URL && !env.KV)) {
+        // 2. 识别是否为 Vercel 环境
+        // Vercel 会自动注入 VERCEL=1，或者我们可以通过 EdgeRuntime 全局变量辅助判断
+        const isVercel = env.VERCEL === '1' || typeof EdgeRuntime !== 'undefined';
+
+        // 3. 检查核心配置 (仅在 Vercel 生产环境强制检查)
+        // 本地开发通常使用内存存储，不需要 DATABASE_URL，所以仅当明确在 Vercel 环境且无 KV 时才拦截
+        if (isVercel && !env.DATABASE_URL && !env.KV) {
+            const requiredEnv = ['AUTH_SECRET', 'ADMIN_USERNAME', 'ADMIN_PASSWORD'];
+            const missingEnv = requiredEnv.filter(k => !env[k as keyof Env]);
+
+            // 返回 200 状态码的 HTML 页面，防止 Vercel 拦截 500 错误页
             return c.html(`
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; line-height: 1.6; max-width: 600px; margin: 40px auto; background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);">
-                    <h1 style="color: #2d3748; font-size: 26px; margin-bottom: 8px;">👋 欢迎使用 SubHub！</h1>
-                    <p style="color: #4a5568;">项目已成功在 Vercel Edge 启动，但检测到 <b>环境变量配置缺失</b>。</p>
-                    <div style="background: #fff5f5; padding: 20px; border-radius: 12px; border: 1px solid #feb2b2; margin: 24px 0;">
-                        <p style="margin-top: 0; font-weight: bold; color: #c53030;">请在 Vercel 控制台配置以下变量：</p>
-                        <ul style="color: #2d3748; padding-left: 20px;">
-                            <li style="margin-bottom: 4px;"><code>DATABASE_URL</code>: Neon PostgreSQL 连接字符串</li>
-                            ${missingEnv.map(k => `<li style="margin-bottom: 4px;"><code>${k}</code>: 必需配置项</li>`).join('')}
-                        </ul>
+                <!DOCTYPE html>
+                <html lang="zh-CN">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>SubHub 环境配置向导</title>
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f7fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+                        .card { background: white; width: 100%; max-width: 600px; padding: 40px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+                        h1 { color: #2d3748; margin-top: 0; font-size: 24px; display: flex; align-items: center; gap: 10px; }
+                        .tag { background: #fed7d7; color: #c53030; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+                        .config-box { background: #fff5f5; border: 1px solid #feb2b2; border-radius: 8px; padding: 20px; margin: 20px 0; }
+                        ul { margin: 0; padding-left: 20px; color: #4a5568; }
+                        li { margin-bottom: 8px; font-family: monospace; }
+                        .btn { display: inline-block; background: #000; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 500; font-size: 14px; margin-top: 20px; }
+                        .btn:hover { background: #333; }
+                        .footer { margin-top: 30px; font-size: 12px; color: #a0aec0; text-align: center; border-top: 1px solid #edf2f7; padding-top: 20px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <h1>👋 欢迎使用 SubHub <span class="tag">待配置</span></h1>
+                        <p style="color: #4a5568;">检测到当前为 Vercel 部署环境，但尚未连接数据库。请完成以下配置以激活服务。</p>
+                        
+                        <div class="config-box">
+                            <p style="margin-top: 0; font-weight: bold; color: #c53030; margin-bottom: 12px;">🔴 必需的环境变量：</p>
+                            <ul>
+                                <li><strong>DATABASE_URL</strong>: Neon 数据库连接字符串</li>
+                                ${missingEnv.map(k => `<li><strong>${k}</strong></li>`).join('')}
+                            </ul>
+                        </div>
+
+                        <p style="font-size: 14px; color: #718096;">
+                            请前往 <strong>Vercel Dashboard</strong> &rarr; <strong>Settings</strong> &rarr; <strong>Environment Variables</strong> 进行添加。
+                        </p>
+
+                        <div style="text-align: center;">
+                            <a href="https://vercel.com/dashboard" target="_blank" class="btn">前往配置</a>
+                            <a href="javascript:location.reload()" class="btn" style="background: white; color: #333; border: 1px solid #e2e8f0; margin-left: 10px;">刷新页面</a>
+                        </div>
+
+                        <div class="footer">
+                            SubHub Setup Wizard • Runtime: ${typeof EdgeRuntime !== 'undefined' ? 'Edge' : 'Node'}
+                        </div>
                     </div>
-                    <p style="color: #718096; font-size: 14px;">📍 配置路径：<b>Vercel Project -> Settings -> Environment Variables</b></p>
-                    <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 24px 0;">
-                    <p style="font-size: 14px; color: #4a5568;">配置并保存后，请重新访问页面（环境生效通常有几十秒延迟）。</p>
-                    <div style="text-align: right; color: #e2e8f0; font-size: 10px; margin-top: 20px;">SubHub Diagnostic v2.1</div>
-                </div>
+                </body>
+                </html>
             `, 200);
         }
 
-        // 选择存储实现：KV > Neon > 内存
+        // 初始化存储
         let storage: Storage;
         if (env.KV) {
             storage = new KVStorage(env.KV);
@@ -91,22 +141,33 @@ app.use('*', async (c, next) => {
         }
 
         c.set('storage', storage);
-        c.set('env', env);
+        c.set('env', env as Env);
 
         await next();
     } catch (err: any) {
-        console.error('[Middleware Crash]', err);
+        console.error('[App Crash]', err);
+        // 捕获所有中间件层面的异常，并返回 200 状态码的错误页
         return c.html(`
-            <div style="padding: 40px; font-family: sans-serif; max-width: 800px; margin: auto;">
-                <h2 style="color: #e74c3c;">🚀 运行时初始化失败</h2>
-                <p>程序在启动时遇到了以下异常错误：</p>
-                <code style="display: block; background: #2d3748; color: #a0aec0; padding: 20px; border-radius: 8px; overflow-x: auto; font-family: monospace;">${err.stack || err.message}</code>
-                <p style="margin-top: 20px;"><b>排查建议：</b></p>
-                <ol>
-                    <li>检查 <code>DATABASE_URL</code> 环境变量是否为有效的 PostgreSQL 连接字符串。</li>
-                    <li>确保 Neon 数据库没有防火墙限制，且允许来自 Vercel IP 的访问。</li>
-                </ol>
-            </div>
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Critical Error</title>
+                <style>
+                    body { font-family: monospace; padding: 20px; background: #fff0f0; }
+                    .error-box { background: white; padding: 20px; border: 1px solid #ffcccc; border-radius: 8px; }
+                    h1 { color: #cc0000; }
+                    pre { background: #f8f8f8; padding: 10px; overflow-x: auto; }
+                </style>
+            </head>
+            <body>
+                <div class="error-box">
+                    <h1>🚀 Serverless Function Crashed</h1>
+                    <p>The application encountered a critical error during initialization.</p>
+                    <pre>${err.stack || err.message}</pre>
+                    <p>Please check your environment variables and database connection.</p>
+                </div>
+            </body>
+            </html>
         `, 200);
     }
 });
