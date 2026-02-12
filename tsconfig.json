@@ -20,7 +20,8 @@
         "jsxImportSource": "hono/jsx"
     },
     "include": [
-        "src/**/*"
+        "src/**/*",
+        "api/**/*"
     ],
     "exclude": [
         "node_modules",
