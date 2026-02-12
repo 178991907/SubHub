@@ -56,6 +56,7 @@ export function createAdminRoutes() {
             createdAt: string;
             lastLogin?: string;
             customNote?: string;
+            membershipLevel?: string;
             subscriptionConfig?: { collectionName: string; token: string };
             lastSyncResult?: { lastSync: string; nodeCount: number; earliestExpire: string | null; totalRemainGB: number | null };
         }> = [];
@@ -65,6 +66,7 @@ export function createAdminRoutes() {
             username: env.ADMIN_USERNAME,
             isAdmin: true,
             createdAt: '系统管理员',
+            membershipLevel: 'VIP用户',
         });
 
         // 获取其他用户
@@ -77,6 +79,7 @@ export function createAdminRoutes() {
                     createdAt: user.createdAt,
                     lastLogin: user.lastLogin,
                     customNote: user.customNote,
+                    membershipLevel: user.membershipLevel,
                     subscriptionConfig: user.subscriptionConfig,
                     lastSyncResult: user.lastSyncResult,
                 });
@@ -96,6 +99,7 @@ export function createAdminRoutes() {
             password: string;
             isAdmin?: boolean;
             customNote?: string;
+            membershipLevel?: string;
             subscriptionConfig?: { collectionName: string; token: string };
         }>();
 
@@ -115,6 +119,7 @@ export function createAdminRoutes() {
             isAdmin: body.isAdmin || false,
             createdAt: new Date().toISOString(),
             customNote: body.customNote,
+            membershipLevel: body.membershipLevel,
             subscriptionConfig: body.subscriptionConfig,
         };
 
@@ -133,6 +138,7 @@ export function createAdminRoutes() {
             password?: string;
             isAdmin?: boolean;
             customNote?: string;
+            membershipLevel?: string;
             subscriptionConfig?: { collectionName: string; token: string };
         }>();
 
@@ -150,6 +156,9 @@ export function createAdminRoutes() {
         }
         if (body.customNote !== undefined) {
             user.customNote = body.customNote;
+        }
+        if (body.membershipLevel !== undefined) {
+            user.membershipLevel = body.membershipLevel;
         }
         if (body.subscriptionConfig !== undefined) {
             user.subscriptionConfig = body.subscriptionConfig;
@@ -173,6 +182,32 @@ export function createAdminRoutes() {
     });
 
     /**
+     * GET /api/admin/config/membership - 获取会员等级配置
+     */
+    admin.get('/config/membership', async (c) => {
+        const storage = c.get('storage');
+        const config = await storage.get<{ levels: string[] }>(STORAGE_KEYS.MEMBERSHIP_CONFIG);
+        // 默认等级
+        const levels = config?.levels || ['普通用户', 'VIP会员', '高级VIP'];
+        return c.json({ levels });
+    });
+
+    /**
+     * POST /api/admin/config/membership - 保存会员等级配置
+     */
+    admin.post('/config/membership', async (c) => {
+        const storage = c.get('storage');
+        const body = await c.req.json<{ levels: string[] }>();
+
+        if (!body.levels || !Array.isArray(body.levels)) {
+            return c.json({ error: '无效的配置格式' }, 400);
+        }
+
+        await storage.set(STORAGE_KEYS.MEMBERSHIP_CONFIG, { levels: body.levels });
+        return c.json({ success: true });
+    });
+
+    /**
      * GET /api/admin/export - 导出 CSV
      */
     admin.get('/export', async (c) => {
@@ -184,18 +219,19 @@ export function createAdminRoutes() {
 
         // 获取所有用户
         const userKeys = await storage.list(STORAGE_KEYS.USERS_PREFIX);
-        const rows: string[] = ['用户名,节点数,最早到期,剩余流量GB,标签'];
+        const rows: string[] = ['用户名,会员等级,节点数,最早到期,剩余流量GB,标签'];
 
         // 添加管理员
         const adminTag = getExpireTag(syncResult?.earliestExpire);
-        rows.push(`${env.ADMIN_USERNAME},${syncResult?.nodeCount || 0},${syncResult?.earliestExpire || 'N/A'},${syncResult?.totalRemainGB || 'N/A'},${adminTag}`);
+        rows.push(`${env.ADMIN_USERNAME},VIP用户,${syncResult?.nodeCount || 0},${syncResult?.earliestExpire || 'N/A'},${syncResult?.totalRemainGB || 'N/A'},${adminTag}`);
 
         // 添加其他用户
         for (const key of userKeys) {
             const user = await storage.get<User>(key);
             if (user) {
                 const tag = getExpireTag(syncResult?.earliestExpire);
-                rows.push(`${user.username},${syncResult?.nodeCount || 0},${syncResult?.earliestExpire || 'N/A'},${syncResult?.totalRemainGB || 'N/A'},${tag}`);
+                const level = user.membershipLevel || (user.isAdmin ? '管理员' : '普通用户');
+                rows.push(`${user.username},${level},${syncResult?.nodeCount || 0},${syncResult?.earliestExpire || 'N/A'},${syncResult?.totalRemainGB || 'N/A'},${tag}`);
             }
         }
 

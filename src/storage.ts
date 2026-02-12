@@ -52,6 +52,7 @@ export interface User {
             other: number;
         };
     };
+    membershipLevel?: string;   // 会员等级 (自定义名称)
 }
 
 export interface SyncLog {
@@ -59,6 +60,11 @@ export interface SyncLog {
     success: boolean;
     nodeCount?: number;
     error?: string;
+}
+
+// 会员等级配置
+export interface MembershipConfig {
+    levels: string[]; // ["标准会员", "高级会员", "VIP"]
 }
 
 // 自动同步配置
@@ -90,4 +96,5 @@ export const STORAGE_KEYS = {
     USERS_LIST: 'users:list',
     AUTO_SYNC_CONFIG: 'config:auto_sync',     // 自动同步配置
     SUBSTORE_CONFIG: 'config:substore',       // Sub-Store 配置
+    MEMBERSHIP_CONFIG: 'config:membership',   // 会员等级配置
 } as const;

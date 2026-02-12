@@ -77,7 +77,7 @@ export function createPageRoutes() {
 
 
 
-    return c.html(renderHomePage(payload.sub, payload.isAdmin, syncResult, subscriptionUrl, env, collectionName));
+    return c.html(renderHomePage(payload.sub, payload.isAdmin, user?.membershipLevel, syncResult, subscriptionUrl, env, collectionName));
   });
 
   /**
@@ -243,6 +243,7 @@ function renderLoginPage() {
 function renderHomePage(
   username: string,
   isAdmin: boolean,
+  membershipLevel: string | undefined, // 新增参数
   syncResult: SyncResult | null,
   subscriptionUrl: string,
   env: Env,
@@ -484,7 +485,7 @@ function renderHomePage(
         </div>
         <div class="info-item">
           <div class="info-label">角色</div>
-          <div class="info-value">${isAdmin ? '管理员' : '普通用户'}</div>
+          <div class="info-value">${membershipLevel || (isAdmin ? '管理员' : '普通用户')}</div>
         </div>
         <div class="info-item">
           <div class="info-label">订阅来源</div>
@@ -981,6 +982,7 @@ function renderAdminPage(
         <a href="/api/admin/export" class="btn" style="text-decoration: none;">📥 导出 CSV</a>
         <button class="btn" onclick="showAddUserModal()">➕ 添加用户</button>
         <button class="btn" onclick="showSubstoreConfig()" style="background:linear-gradient(135deg,#f39c12 0%,#e67e22 100%);">🔧 Sub-Store 配置</button>
+        <button class="btn" onclick="showMembershipConfig()" style="background:linear-gradient(135deg,#9b59b6 0%,#8e44ad 100%);">👑 会员等级配置</button>
       </div>
       <div id="syncResult" class="sync-result"></div>
     </div>
@@ -1100,6 +1102,12 @@ function renderAdminPage(
           <small>从待分配的分享 Token 中选择，创建用户后将自动绑定</small>
         </div>
         <div class="form-group">
+          <label>会员等级</label>
+          <select name="membershipLevel" id="addUserMembershipSelect" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+            <option value="">默认 (普通用户)</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label>备注</label>
           <textarea name="customNote" rows="2" placeholder="可选备注信息"></textarea>
         </div>
@@ -1108,6 +1116,62 @@ function renderAdminPage(
           <button type="submit" class="btn btn-success">创建用户</button>
         </div>
       </form>
+    </div>
+  </div>
+  
+  <!-- 编辑用户模态框 -->
+  <div class="modal" id="editUserModal">
+    <div class="modal-content">
+      <div class="modal-title">✏️ 编辑用户</div>
+      <form id="editUserForm" onsubmit="submitEditUser(event)">
+        <input type="hidden" name="username" id="editUserUsername">
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" id="editUserUsernameDisplay" disabled style="background:#f5f5f5;">
+        </div>
+        <div class="form-group">
+          <label>新密码 (留空则不修改)</label>
+          <input type="password" name="password" placeholder="输入新密码">
+        </div>
+        <div class="form-group">
+          <label>会员等级</label>
+          <select name="membershipLevel" id="editUserMembershipSelect" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+            <option value="">默认 (普通用户)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>备注</label>
+          <textarea name="customNote" id="editUserNote" rows="2" placeholder="可选备注信息"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-danger" onclick="closeModal('editUserModal')">取消</button>
+          <button type="submit" class="btn btn-success">保存修改</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 会员等级配置模态框 -->
+  <div class="modal" id="membershipConfigModal">
+    <div class="modal-content">
+      <div class="modal-title">👑 会员等级配置</div>
+      <div class="form-group">
+        <label>现有等级 (可通过拖拽排序)</label>
+        <div id="membershipLevelsList" style="max-height:200px;overflow-y:auto;border:1px solid #ddd;border-radius:6px;padding:10px;margin-bottom:10px;">
+          <div style="color:#999;text-align:center;">加载中...</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>添加新等级</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="newMembershipLevel" placeholder="输入等级名称" style="flex:1;">
+          <button type="button" class="btn btn-sm" onclick="addMembershipLevel()">添加</button>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-danger" onclick="closeModal('membershipConfigModal')">关闭</button>
+        <button type="button" class="btn btn-success" onclick="saveMembershipConfig()">保存配置</button>
+      </div>
     </div>
   </div>
   
@@ -1197,6 +1261,7 @@ function renderAdminPage(
     createdAt: u.createdAt,
     lastLogin: u.lastLogin,
     customNote: u.customNote,
+    membershipLevel: (u as any).membershipLevel,
     subscriptionConfig: (u as any).subscriptionConfig || null,
     lastSyncResult: (u as any).lastSyncResult || null,
   })) || []).replace(/</g, '\\u003c'))}
@@ -1433,10 +1498,15 @@ function renderAdminPage(
             subInfo = '<div class="subscription-info" style="color:#999;">未绑定订阅链接</div>';
           }
           
+          
           var card = document.createElement('div');
           card.className = 'user-card';
           card.id = 'user-' + u.username;
-          card.innerHTML = '<div class="user-name">' + u.username + ' ' + (u.isAdmin ? '<span class="tag tag-admin">管理员</span> ' : '') + subTag + '</div>' +
+          
+          var roleTag = u.membershipLevel ? '<span class="tag" style="background:#9b59b6;color:white;">' + u.membershipLevel + '</span>' : '';
+          if (u.isAdmin) roleTag += ' <span class="tag tag-admin">管理员</span>';
+          
+          card.innerHTML = '<div class="user-name">' + u.username + ' ' + roleTag + ' ' + subTag + '</div>' +
             '<div class="user-info">创建于: ' + new Date(u.createdAt).toLocaleDateString('zh-CN') + '</div>' +
             (u.lastLogin ? '<div class="user-info">最后登录: ' + new Date(u.lastLogin).toLocaleString('zh-CN') + '</div>' : '') +
             (u.customNote ? '<div class="user-info">备注: ' + u.customNote + '</div>' : '') +
@@ -1505,6 +1575,7 @@ function renderAdminPage(
       document.getElementById('addUserModal').classList.add('active');
       document.getElementById('addUserForm').reset();
       await populateTokenSelect('addUserTokenSelect');
+      await populateMembershipSelect('addUserMembershipSelect');
     }
     
     async function populateTokenSelect(selectId) {
@@ -1542,6 +1613,7 @@ function renderAdminPage(
         username: form.username.value,
         password: form.password.value,
         customNote: form.customNote.value || undefined,
+        membershipLevel: form.membershipLevel.value || undefined,
       };
       // 从下拉选择的 Token 解析
       var tokenVal = form.shareToken.value;
@@ -1612,20 +1684,130 @@ function renderAdminPage(
       } catch (err) { alert('网络错误'); }
     }
     
-    function editUser(username) {
-      const note = prompt('请输入备注:');
-      if (note === null) return;
+    }
+    
+    async function editUser(username) {
+      var user = allUsersData.find(u => u.username === username);
+      if (!user) return;
       
-      fetch('/api/admin/users/' + username, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customNote: note }),
-      }).then(r => r.json()).then(data => {
-        if (data.success) {
-          location.reload();
+      document.getElementById('editUserUsername').value = username;
+      document.getElementById('editUserUsernameDisplay').value = username;
+      document.getElementById('editUserForm').reset();
+      document.getElementById('editUserNote').value = user.customNote || '';
+      
+      await populateMembershipSelect('editUserMembershipSelect', user.membershipLevel);
+      
+      document.getElementById('editUserModal').classList.add('active');
+    }
+    
+    async function submitEditUser(e) {
+      e.preventDefault();
+      var form = e.target;
+      var username = form.username.value;
+      var data = {
+        password: form.password.value || undefined,
+        customNote: form.customNote.value || undefined,
+        membershipLevel: form.membershipLevel.value || undefined
+      };
+      
+      try {
+        var res = await fetch('/api/admin/users/' + username, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        var result = await res.json();
+        if (result.success) {
+          showToast('✅ 更新成功');
+          closeModal('editUserModal');
+          setTimeout(function() { location.reload(); }, 800);
         } else {
-          alert('更新失败: ' + data.error);
+          alert('更新失败: ' + result.error);
         }
+      } catch (err) { alert('网络错误'); }
+    }
+    
+    // 会员等级配置相关
+    let membershipLevels = [];
+    
+    async function loadMembershipConfig() {
+      try {
+        const res = await fetch('/api/admin/config/membership');
+        const data = await res.json();
+        membershipLevels = data.levels || [];
+      } catch (err) {
+        console.error('加载会员配置失败', err);
+        membershipLevels = ['普通用户', 'VIP会员', '高级VIP'];
+      }
+    }
+    
+    async function showMembershipConfig() {
+      await loadMembershipConfig();
+      renderMembershipList();
+      document.getElementById('membershipConfigModal').classList.add('active');
+    }
+    
+    function renderMembershipList() {
+      const container = document.getElementById('membershipLevelsList');
+      if (membershipLevels.length === 0) {
+        container.innerHTML = '<div style="color:#999;text-align:center;">无</div>';
+        return;
+      }
+      // 赋予删除功能
+      container.innerHTML = membershipLevels.map((level, idx) => 
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid #eee;">' +
+          '<span>' + level + '</span>' +
+          '<button type="button" onclick="removeMembershipLevel(' + idx + ')" style="border:none;background:#e74c3c;color:white;padding:2px 8px;border-radius:4px;cursor:pointer;">删除</button>' +
+        '</div>'
+      ).join('');
+    }
+    
+    function addMembershipLevel() {
+      const input = document.getElementById('newMembershipLevel');
+      const val = input.value.trim();
+      if (!val) return;
+      if (membershipLevels.includes(val)) {
+        alert('等级已存在');
+        return;
+      }
+      membershipLevels.push(val);
+      input.value = '';
+      renderMembershipList();
+    }
+    
+    function removeMembershipLevel(idx) {
+      membershipLevels.splice(idx, 1);
+      renderMembershipList();
+    }
+    
+    async function saveMembershipConfig() {
+      try {
+        const res = await fetch('/api/admin/config/membership', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ levels: membershipLevels }),
+        });
+        const result = await res.json();
+        if (result.success) {
+          showToast('✅ 配置已保存');
+          closeModal('membershipConfigModal');
+        } else {
+          alert('保存失败: ' + result.error);
+        }
+      } catch (err) { alert('网络错误'); }
+    }
+    
+    async function populateMembershipSelect(selectId, currentVal) {
+      if (membershipLevels.length === 0) await loadMembershipConfig();
+      
+      const sel = document.getElementById(selectId);
+      sel.innerHTML = '<option value="">默认 (普通用户)</option>';
+      membershipLevels.forEach(level => {
+        const opt = document.createElement('option');
+        opt.value = level;
+        opt.textContent = level;
+        if (currentVal && currentVal === level) opt.selected = true;
+        sel.appendChild(opt);
       });
     }
     
