@@ -11,9 +11,9 @@ async function handleScheduled(
 ): Promise<void> {
     console.log('[Cron] 定时任务触发:', new Date().toISOString());
 
-    const { KVStorage } = await import('./storage/kv.js');
-    const { memoryStorage } = await import('./storage/memory.js');
-    const { syncAllUsers, getAutoSyncConfig } = await import('./scheduler.js');
+    import { KVStorage } from './storage/kv.js';
+    import { memoryStorage } from './storage/memory.js';
+    import { syncAllUsers, getAutoSyncConfig } from './scheduler.js';
 
     const storage = env.KV ? new KVStorage(env.KV) : memoryStorage;
 
