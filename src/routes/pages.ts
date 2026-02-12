@@ -8,7 +8,7 @@ import { STORAGE_KEYS } from '../storage.js';
 import { verifyToken } from '../auth.js';
 import type { AuthEnv } from '../auth.js';
 import type { SyncEnv } from '../sync.js';
-// import { generateQRCodeSVG } from '../utils/qrcode.js';
+import { generateQRCodeSVG } from '../utils/qrcode.js';
 
 type Env = AuthEnv & SyncEnv & { storage: Storage };
 
@@ -74,15 +74,12 @@ export function createPageRoutes() {
       totalRemainGB: userSyncResult.totalRemainGB,
     } as SyncResult : globalSyncResult;
 
-    // 临时禁用二维码生成，排查 500 错误
-    let qrcodeSvg = '<div style="padding:20px;text-align:center;color:#666;border:1px dashed #ccc;border-radius:8px;">二维码功能维护中...</div>';
-    /* 
+    let qrcodeSvg = '';
     try {
       qrcodeSvg = await generateQRCodeSVG(subscriptionUrl);
     } catch {
       qrcodeSvg = '<p>\u4E8C\u7EF4\u7801\u751F\u6210\u5931\u8D25</p>';
-    } 
-    */
+    }
 
     return c.html(renderHomePage(payload.sub, payload.isAdmin, syncResult, qrcodeSvg, subscriptionUrl, env, collectionName));
   });
