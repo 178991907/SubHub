@@ -123,7 +123,7 @@ function renderLoginPage() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>登录 - Sub-Store 同步平台</title>
+  <title>登录 - Sub-Hub 订阅管理平台</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -195,7 +195,7 @@ function renderLoginPage() {
 </head>
 <body>
   <div class="login-card">
-    <h1>🔐 Sub-Store 同步平台</h1>
+    <h1>🔐 Sub-Hub 订阅管理平台</h1>
     <div class="error" id="error"></div>
     <form id="loginForm">
       <div class="form-group">
@@ -262,7 +262,7 @@ function renderHomePage(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>订阅中心 - Sub-Store 同步平台</title>
+  <title>订阅中心 - Sub-Hub 订阅管理平台</title>
   <script src="https://cdn.staticfile.org/qrcode/1.4.4/qrcode.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/qrcode@1.4.4/build/qrcode.min.js'"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -278,8 +278,17 @@ function renderHomePage(
       display: flex;
       justify-content: space-between;
       align-items: center;
+      position: relative;
     }
     .header h1 { font-size: 20px; }
+    .header-title {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 20px;
+      font-weight: 700;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
     .header-actions { display: flex; gap: 10px; }
     .header-actions a, .header-actions button {
       background: rgba(255,255,255,0.2);
@@ -469,6 +478,7 @@ function renderHomePage(
   <div id="toast" class="toast"></div>
   <div class="header">
     <h1>👋 欢迎，${username}</h1>
+    <div class="header-title">Sub-Hub 订阅管理平台</div>
     <div class="header-actions">
       ${isAdmin ? html`<a href="/admin">管理后台</a>` : ''}
       <button onclick="logout()">退出登录</button>
@@ -718,7 +728,7 @@ function renderAdminPage(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>管理后台 - Sub-Store 同步平台</title>
+  <title>管理后台 - Sub-Hub 订阅管理平台</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -733,8 +743,17 @@ function renderAdminPage(
       display: flex;
       justify-content: space-between;
       align-items: center;
+      position: relative;
     }
     .header h1 { font-size: 20px; }
+    .header-title {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 20px;
+      font-weight: 700;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
     .header-actions { display: flex; gap: 10px; }
     .header-actions a, .header-actions button {
       background: rgba(255,255,255,0.2);
@@ -965,6 +984,7 @@ function renderAdminPage(
   <div class="toast-container" id="toastContainer"></div>
   <div class="header">
     <h1>🔧 管理后台</h1>
+    <div class="header-title">Sub-Hub 订阅管理平台</div>
     <div class="header-actions">
       <a href="/">返回主页</a>
       <button onclick="logout()">退出登录</button>
