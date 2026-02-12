@@ -54,6 +54,28 @@ app.use('*', async (c, next) => {
         ...(c.env || {})
     } as Env;
 
+    // 预检核心环境变量
+    const requiredEnv = ['AUTH_SECRET', 'ADMIN_USERNAME', 'ADMIN_PASSWORD'];
+    const missingEnv = requiredEnv.filter(k => !env[k as keyof Env]);
+
+    // 如果是 Vercel 环境但没有 DATABASE_URL，提示配置
+    if (typeof EdgeRuntime !== 'undefined' && !env.DATABASE_URL && !env.KV) {
+        return c.html(`
+            <div style="font-family: sans-serif; padding: 40px; line-height: 1.6;">
+                <h1 style="color: #e74c3c;">⚠️ 环境配置缺失</h1>
+                <p>项目已成功部署在 Vercel Edge，但无法连接数据库。</p>
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #e74c3c;">
+                    <p><strong>请在 Vercel 项目设置中配置以下环境变量：</strong></p>
+                    <ul>
+                        <li><code>DATABASE_URL</code>: Neon PostgreSQL 连接字符串</li>
+                        ${missingEnv.map(k => `<li><code>${k}</code>: 必需项</li>`).join('')}
+                    </ul>
+                </div>
+                <p>配置完成后，请重新部署或稍等片刻即可访问。</p>
+            </div>
+        `, 500);
+    }
+
     // 选择存储实现：KV > Neon > 内存
     let storage: Storage;
     if (env.KV) {
