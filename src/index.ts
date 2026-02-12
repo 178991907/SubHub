@@ -1,7 +1,7 @@
 /**
  * Cloudflare Workers 入口
  */
-import { app, Env } from './app';
+import { app, Env } from './app.js';
 
 // Scheduled 事件处理（Cloudflare Workers Cron 触发）
 async function handleScheduled(
@@ -11,9 +11,9 @@ async function handleScheduled(
 ): Promise<void> {
     console.log('[Cron] 定时任务触发:', new Date().toISOString());
 
-    const { KVStorage } = await import('./storage/kv');
-    const { memoryStorage } = await import('./storage/memory');
-    const { syncAllUsers, getAutoSyncConfig } = await import('./scheduler');
+    const { KVStorage } = await import('./storage/kv.js');
+    const { memoryStorage } = await import('./storage/memory.js');
+    const { syncAllUsers, getAutoSyncConfig } = await import('./scheduler.js');
 
     const storage = env.KV ? new KVStorage(env.KV) : memoryStorage;
 

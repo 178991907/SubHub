@@ -5,15 +5,15 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-import type { Storage } from './storage';
-import { memoryStorage } from './storage/memory';
-import { KVStorage } from './storage/kv';
-import { NeonStorage } from './storage/neon';
-import { createApiRoutes } from './routes/api';
-import { createAdminRoutes } from './routes/admin';
-import { createPageRoutes } from './routes/pages';
-import type { AuthEnv } from './auth';
-import type { SyncEnv } from './sync';
+import type { Storage } from './storage.js';
+import { memoryStorage } from './storage/memory.js';
+import { KVStorage } from './storage/kv.js';
+import { NeonStorage } from './storage/neon.js';
+import { createApiRoutes } from './routes/api.js';
+import { createAdminRoutes } from './routes/admin.js';
+import { createPageRoutes } from './routes/pages.js';
+import type { AuthEnv } from './auth.js';
+import type { SyncEnv } from './sync.js';
 
 // 环境变量类型
 export interface Env extends AuthEnv, SyncEnv {

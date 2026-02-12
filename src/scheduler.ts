@@ -1,9 +1,9 @@
 /**
  * 调度器模块 - 处理自动同步任务
  */
-import type { Storage, User, AutoSyncConfig } from './storage';
-import { STORAGE_KEYS } from './storage';
-import type { SyncEnv } from './sync';
+import type { Storage, User, AutoSyncConfig } from './storage.js';
+import { STORAGE_KEYS } from './storage.js';
+import type { SyncEnv } from './sync.js';
 
 // 同步单个用户的订阅
 export async function syncUserSubscription(

@@ -1,7 +1,7 @@
 /**
  * Vercel Edge Runtime 入口
  */
-import { app } from '../src/app';
+import { app } from '../src/app.js';
 import { handle } from 'hono/vercel';
 
 // Vercel Edge 运行时声明
