@@ -539,22 +539,45 @@ function renderHomePage(
   </div>
   
   <script>
-    const SUBSCRIPTION_URL = '${subscriptionUrl}';
+    const SUBSCRIPTION_URL = ${JSON.stringify(subscriptionUrl)};
     
-    // 生成二维码
-    window.onload = function() {
+    // 生成二维码 (防抖 + 确保 DOM 加载)
+    function generateQRCode() {
       const canvas = document.getElementById('qrcode-canvas');
-      QRCode.toCanvas(canvas, SUBSCRIPTION_URL, { 
-        width: 200, 
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#ffffff'
-        }
-      }, function (error) {
-        if (error) console.error(error);
-      });
-    };
+      if (!canvas || !window.QRCode) {
+        console.warn('Canvas or QRCode library not ready, retrying...');
+        setTimeout(generateQRCode, 500);
+        return;
+      }
+
+      try {
+        QRCode.toCanvas(canvas, SUBSCRIPTION_URL, { 
+          width: 200, 
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#ffffff'
+          },
+          errorCorrectionLevel: 'M'
+        }, function (error) {
+          if (error) {
+            console.error('[QRCode Error]', error);
+            canvas.style.display = 'none';
+            canvas.parentNode.innerHTML = '<div style="color:red;font-size:12px;text-align:center;">二维码生成失败</div>';
+          } else {
+            console.log('[QRCode] Generated successfully');
+          }
+        });
+      } catch (e) {
+        console.error('[QRCode Exception]', e);
+      }
+    }
+
+    if (document.readyState === 'complete') {
+      generateQRCode();
+    } else {
+      window.addEventListener('load', generateQRCode);
+    }
     
     async function logout() {
       await fetch('/api/auth/logout', { method: 'POST' });

@@ -95,6 +95,12 @@ export async function syncSubscription(
 
         // 6. 按行解析
         const lines = text.split(/\r?\n/).filter((line) => line.trim());
+
+        // Debug: 打印前 5 行内容以排查协议识别问题
+        if (lines.length > 0) {
+            console.log('[Sync Preview] First 5 lines:', lines.slice(0, 5).map(l => l.substring(0, 50) + '...'));
+        }
+
         const validLines: string[] = [];
         let invalidCount = 0;
 

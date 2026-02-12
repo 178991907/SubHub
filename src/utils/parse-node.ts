@@ -74,12 +74,16 @@ export function extractNodeNameFromUrl(url: string): string {
  * 判断行是否为有效的代理 URL
  */
 export function isValidProxyUrl(line: string): boolean {
-    const trimmed = line.trim();
+    const trimmed = line.trim().toLowerCase();
     return trimmed.startsWith('vless://') ||
         trimmed.startsWith('trojan://') ||
         trimmed.startsWith('vmess://') ||
         trimmed.startsWith('ss://') ||
-        trimmed.startsWith('ssr://');
+        trimmed.startsWith('ssr://') ||
+        trimmed.startsWith('hysteria2://') ||
+        trimmed.startsWith('hysteria://') ||
+        trimmed.startsWith('tuic://') ||
+        trimmed.startsWith('wireguard://');
 }
 
 /**
