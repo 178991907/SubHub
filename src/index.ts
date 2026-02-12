@@ -1,7 +1,7 @@
 /**
  * Cloudflare Workers 入口
  */
-import { app, Env } from './app.js';
+import app, { Env } from './app.js';
 import { KVStorage } from './storage/kv.js';
 import { memoryStorage } from './storage/memory.js';
 import { syncAllUsers, getAutoSyncConfig } from './scheduler.js';

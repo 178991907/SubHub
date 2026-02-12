@@ -174,3 +174,5 @@ app.onError((err, c) => {
 
 // 类型声明
 declare const EdgeRuntime: string | undefined;
+
+export default app;
