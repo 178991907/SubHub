@@ -1684,7 +1684,7 @@ function renderAdminPage(
       } catch (err) { alert('网络错误'); }
     }
     
-    }
+
     
     async function editUser(username) {
       var user = allUsersData.find(u => u.username === username);

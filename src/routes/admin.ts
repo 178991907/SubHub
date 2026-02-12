@@ -531,19 +531,30 @@ export function createAdminRoutes() {
             return c.json({ error: `查询失败: ${message}` }, 502);
         }
 
-        // 2. 获取所有已绑定的 token 值
+        // 2. 获取所有已绑定的 token 值 和 用户列表
         const userKeys = await storage.list(STORAGE_KEYS.USERS_PREFIX);
         const boundTokenValues = new Set<string>();
         const boundCompositeKeys = new Set<string>();
+        const allUsers: { username: string; hasSub: boolean }[] = [];
 
         for (const key of userKeys) {
             const user = await storage.get<User>(key);
-            if (user?.subscriptionConfig?.token) {
-                // 同时记录纯 token 值和复合键
+            if (!user) continue;
+
+            // 收集绑定信息
+            if (user.subscriptionConfig?.token) {
                 boundTokenValues.add(user.subscriptionConfig.token);
                 const compositeKey = user.subscriptionConfig.token + '::' + (user.subscriptionConfig.collectionName || '');
                 boundCompositeKeys.add(compositeKey);
-                console.log(`[Unbound] 已绑定用户 ${user.username}: token=${user.subscriptionConfig.token}, col=${user.subscriptionConfig.collectionName}, key=${compositeKey}`);
+                // console.log(`[Unbound] 已绑定用户 ${user.username}: token=${user.subscriptionConfig.token}`);
+            }
+
+            // 收集前端所需的用户列表 (非管理员)
+            if (!user.isAdmin) {
+                allUsers.push({
+                    username: user.username,
+                    hasSub: !!user.subscriptionConfig,
+                });
             }
         }
 
@@ -558,22 +569,10 @@ export function createAdminRoutes() {
             // 只要 token 值被任何用户绑定，就认为已绑定
             const isBound = boundTokenValues.has(tokenValue);
             if (isBound) {
-                console.log(`[Unbound] 过滤掉已绑定 token: ${tokenValue}`);
+                // console.log(`[Unbound] 过滤掉已绑定 token: ${tokenValue}`);
             }
             return !isBound;
         });
-
-        // 5. 获取所有非管理员用户列表（标注绑定状态，用于快速绑定下拉）
-        const allUsers: { username: string; hasSub: boolean }[] = [];
-        for (const key of userKeys) {
-            const user = await storage.get<User>(key);
-            if (user && !user.isAdmin) {
-                allUsers.push({
-                    username: user.username,
-                    hasSub: !!user.subscriptionConfig,
-                });
-            }
-        }
 
         console.log(`[Unbound] 总计: ${allTokens.length}, 已绑定: ${allTokens.length - unboundTokens.length}, 待分配: ${unboundTokens.length}`);
 
