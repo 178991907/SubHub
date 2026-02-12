@@ -5,7 +5,6 @@ dist/
 .env
 .dev.vars
 *.log
-_worker.js
 .DS_Store
 .vscode/
 .gemini/
