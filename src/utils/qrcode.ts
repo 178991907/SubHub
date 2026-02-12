@@ -1,29 +1,33 @@
 /**
- * 二维码生成工具
+ * 二维码生成工具 - Edge Runtime 兼容版
  */
-import QRCode from 'qrcode';
+// @ts-ignore
+import qrcode from 'qrcode-generator';
 
 /**
  * 生成二维码 SVG 字符串
  */
 export async function generateQRCodeSVG(text: string): Promise<string> {
-    return QRCode.toString(text, {
-        type: 'svg',
-        margin: 2,
-        width: 200,
-        color: {
-            dark: '#000000',
-            light: '#ffffff',
-        },
-    });
+    const typeNumber = 0; // 自动检测
+    const errorCorrectionLevel = 'M';
+    const qr = qrcode(typeNumber, errorCorrectionLevel);
+    qr.addData(text);
+    qr.make();
+
+    // 返回 SVG 标签内容 (cell 宽, margin 宽)
+    return qr.createSvgTag(5, 2);
 }
 
 /**
  * 生成二维码 Data URL（Base64）
  */
 export async function generateQRCodeDataURL(text: string): Promise<string> {
-    return QRCode.toDataURL(text, {
-        margin: 2,
-        width: 200,
-    });
+    const typeNumber = 0;
+    const errorCorrectionLevel = 'M';
+    const qr = qrcode(typeNumber, errorCorrectionLevel);
+    qr.addData(text);
+    qr.make();
+
+    // 返回 base64 数据链接
+    return qr.createDataURL(5, 2);
 }
