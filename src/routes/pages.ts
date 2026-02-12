@@ -487,7 +487,7 @@ function renderHomePage(
           <div class="stat-label">节点数量</div>
         </div>
         <div class="stat-item">
-          <div class="stat-value">${syncResult?.totalRemainGB ? `${syncResult.totalRemainGB}GB` : 'N/A'}</div>
+          <div class="stat-value">${syncResult?.totalRemainGB ? `${syncResult.totalRemainGB}GB` : '无限流量'}</div>
           <div class="stat-label">剩余流量</div>
         </div>
       </div>
