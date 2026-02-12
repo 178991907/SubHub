@@ -513,7 +513,10 @@ function renderHomePage(
     </div>
     
     <div class="card">
-      <h2 class="card-title">⏰ 同步信息</h2>
+      <h2 class="card-title">
+        ⏰ 同步信息
+        <button class="btn btn-sm" id="syncBtn" onclick="syncNow()" style="float: right; font-size: 12px; padding: 4px 10px;">🔄 立即同步</button>
+      </h2>
       <p><strong>最后同步:</strong> ${lastSync}</p>
       <p><strong>最早到期:</strong> <span class="${getExpireClass(syncResult?.earliestExpire)}">${expireInfo}</span></p>
     </div>
@@ -595,6 +598,31 @@ function renderHomePage(
     async function logout() {
       await fetch('/api/auth/logout', { method: 'POST' });
       window.location.href = '/login';
+    }
+
+    async function syncNow() {
+      const btn = document.getElementById('syncBtn');
+      const originalText = btn.textContent;
+      btn.textContent = '⏳ 同步中...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/subscription/sync', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          alert('同步成功！发现 ' + data.count + ' 个节点');
+          window.location.reload();
+        } else {
+          alert('同步失败: ' + (data.error || '未知错误'));
+          btn.textContent = originalText;
+          btn.disabled = false;
+        }
+      } catch (e) {
+        alert('同步请求失败: ' + e.message);
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
     }
     
     function copySubscriptionUrl() {

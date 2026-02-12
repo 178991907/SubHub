@@ -8,6 +8,7 @@ import type { AuthEnv } from '../auth.js';
 import { login, authMiddleware, verifyToken, hashPassword, verifyPassword } from '../auth.js';
 import type { SyncEnv } from '../sync.js';
 import { syncSubscription, getSyncResult, getSyncStatus } from '../sync.js';
+import { syncUserSubscription } from '../scheduler.js';
 
 // 环境变量类型
 type Env = AuthEnv & SyncEnv & { storage: Storage };
@@ -249,8 +250,55 @@ export function createApiRoutes() {
                 collectionName: user.subscriptionConfig.collectionName,
                 token: user.subscriptionConfig.token,
             },
-            message: '订阅尚未同步，请等待自动同步或联系管理员手动同步',
         });
+    });
+
+    /**
+     * POST /api/subscription/sync - 手动触发同步（需登录）
+     */
+    api.post('/subscription/sync', async (c) => {
+        const env = c.get('env');
+
+        // 验证登录
+        const authHeader = c.req.header('Authorization');
+        let token = authHeader?.startsWith('Bearer ')
+            ? authHeader.substring(7)
+            : c.req.header('Cookie')?.match(/token=([^;]+)/)?.[1];
+
+        if (!token) {
+            return c.json({ error: '未登录' }, 401);
+        }
+
+        const payload = await verifyToken(token, env.AUTH_SECRET);
+        if (!payload) {
+            return c.json({ error: 'Token 无效' }, 401);
+        }
+
+        const storage = c.get('storage');
+        const username = payload.sub;
+
+        // 获取用户数据
+        const user = await storage.get<User>(`${STORAGE_KEYS.USERS_PREFIX}${username}`);
+        if (!user || !user.subscriptionConfig) {
+            return c.json({ error: '未绑定订阅链接' }, 404);
+        }
+
+        // 获取 Sub-Store 配置
+        const substoreConfig = await storage.get<{ baseUrl: string }>('config:substore');
+        const baseUrl = substoreConfig?.baseUrl || env.SUBSTORE_SHARE_BASE || '';
+
+        if (!baseUrl) {
+            return c.json({ error: '未配置 Sub-Store 地址' }, 500);
+        }
+
+        // 执行同步
+        const result = await syncUserSubscription(storage, user, baseUrl);
+
+        if (result.success) {
+            return c.json({ success: true, count: result.nodeCount });
+        } else {
+            return c.json({ error: result.error || '同步失败' }, 500);
+        }
     });
 
     /**
