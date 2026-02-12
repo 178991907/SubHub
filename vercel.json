@@ -1,22 +1,8 @@
 {
-    "version": 2,
-    "framework": null,
-    "buildCommand": null,
-    "outputDirectory": null,
-    "installCommand": "npm install",
-    "routes": [
+    "rewrites": [
         {
-            "src": "/api/(.*)",
-            "dest": "/api/$1"
-        },
-        {
-            "src": "/(.*)",
-            "dest": "/api/index"
+            "source": "/(.*)",
+            "destination": "/api/index"
         }
-    ],
-    "functions": {
-        "api/index.ts": {
-            "runtime": "edge"
-        }
-    }
+    ]
 }
