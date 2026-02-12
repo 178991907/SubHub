@@ -1,3901 +1,6 @@
-var __create = Object.create;
 var __freeze = Object.freeze;
 var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __esm = (fn, res) => function __init() {
-  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
-};
-var __commonJS = (cb, mod) => function __require() {
-  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
-};
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-var __copyProps = (to, from, except, desc) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-  }
-  return to;
-};
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
 var __template = (cooked, raw2) => __freeze(__defProp(cooked, "raw", { value: __freeze(raw2 || cooked.slice()) }));
-
-// src/storage/memory.ts
-var memory_exports = {};
-__export(memory_exports, {
-  MemoryStorage: () => MemoryStorage,
-  memoryStorage: () => memoryStorage
-});
-var MemoryStorage, memoryStorage;
-var init_memory = __esm({
-  "src/storage/memory.ts"() {
-    "use strict";
-    MemoryStorage = class {
-      store = /* @__PURE__ */ new Map();
-      async get(key) {
-        const entry = this.store.get(key);
-        if (!entry) return null;
-        if (entry.expireAt && Date.now() > entry.expireAt) {
-          this.store.delete(key);
-          return null;
-        }
-        return entry.value;
-      }
-      async set(key, value, options) {
-        const entry = { value };
-        if (options?.ttl) {
-          entry.expireAt = Date.now() + options.ttl * 1e3;
-        }
-        this.store.set(key, entry);
-      }
-      async delete(key) {
-        this.store.delete(key);
-      }
-      async list(prefix) {
-        const keys = [];
-        for (const key of this.store.keys()) {
-          if (key.startsWith(prefix)) {
-            keys.push(key);
-          }
-        }
-        return keys;
-      }
-      // 用于测试：清空所有数据
-      clear() {
-        this.store.clear();
-      }
-    };
-    memoryStorage = new MemoryStorage();
-  }
-});
-
-// src/storage/kv.ts
-var kv_exports = {};
-__export(kv_exports, {
-  KVStorage: () => KVStorage
-});
-var KVStorage;
-var init_kv = __esm({
-  "src/storage/kv.ts"() {
-    "use strict";
-    KVStorage = class {
-      constructor(kv) {
-        this.kv = kv;
-      }
-      async get(key) {
-        const value = await this.kv.get(key, { type: "json" });
-        return value;
-      }
-      async set(key, value, options) {
-        await this.kv.put(key, JSON.stringify(value), {
-          expirationTtl: options?.ttl
-        });
-      }
-      async delete(key) {
-        await this.kv.delete(key);
-      }
-      async list(prefix) {
-        const result = await this.kv.list({ prefix });
-        return result.keys.map((k) => k.name);
-      }
-    };
-  }
-});
-
-// src/storage.ts
-var STORAGE_KEYS;
-var init_storage = __esm({
-  "src/storage.ts"() {
-    "use strict";
-    STORAGE_KEYS = {
-      SYNC_RESULT: "sync:result",
-      SYNC_LOGS: "sync:logs",
-      USERS_PREFIX: "user:",
-      USERS_LIST: "users:list",
-      AUTO_SYNC_CONFIG: "config:auto_sync",
-      // 自动同步配置
-      SUBSTORE_CONFIG: "config:substore"
-      // Sub-Store 配置
-    };
-  }
-});
-
-// node_modules/jose/dist/browser/runtime/webcrypto.js
-var webcrypto_default, isCryptoKey;
-var init_webcrypto = __esm({
-  "node_modules/jose/dist/browser/runtime/webcrypto.js"() {
-    webcrypto_default = crypto;
-    isCryptoKey = (key) => key instanceof CryptoKey;
-  }
-});
-
-// node_modules/jose/dist/browser/lib/buffer_utils.js
-function concat(...buffers) {
-  const size = buffers.reduce((acc, { length }) => acc + length, 0);
-  const buf = new Uint8Array(size);
-  let i = 0;
-  for (const buffer of buffers) {
-    buf.set(buffer, i);
-    i += buffer.length;
-  }
-  return buf;
-}
-var encoder, decoder, MAX_INT32;
-var init_buffer_utils = __esm({
-  "node_modules/jose/dist/browser/lib/buffer_utils.js"() {
-    encoder = new TextEncoder();
-    decoder = new TextDecoder();
-    MAX_INT32 = 2 ** 32;
-  }
-});
-
-// node_modules/jose/dist/browser/runtime/base64url.js
-var encodeBase64, encode, decodeBase64, decode;
-var init_base64url = __esm({
-  "node_modules/jose/dist/browser/runtime/base64url.js"() {
-    init_buffer_utils();
-    encodeBase64 = (input) => {
-      let unencoded = input;
-      if (typeof unencoded === "string") {
-        unencoded = encoder.encode(unencoded);
-      }
-      const CHUNK_SIZE = 32768;
-      const arr = [];
-      for (let i = 0; i < unencoded.length; i += CHUNK_SIZE) {
-        arr.push(String.fromCharCode.apply(null, unencoded.subarray(i, i + CHUNK_SIZE)));
-      }
-      return btoa(arr.join(""));
-    };
-    encode = (input) => {
-      return encodeBase64(input).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-    };
-    decodeBase64 = (encoded) => {
-      const binary = atob(encoded);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-      return bytes;
-    };
-    decode = (input) => {
-      let encoded = input;
-      if (encoded instanceof Uint8Array) {
-        encoded = decoder.decode(encoded);
-      }
-      encoded = encoded.replace(/-/g, "+").replace(/_/g, "/").replace(/\s/g, "");
-      try {
-        return decodeBase64(encoded);
-      } catch {
-        throw new TypeError("The input to be decoded is not correctly encoded.");
-      }
-    };
-  }
-});
-
-// node_modules/jose/dist/browser/util/errors.js
-var JOSEError, JWTClaimValidationFailed, JWTExpired, JOSEAlgNotAllowed, JOSENotSupported, JWEDecryptionFailed, JWEInvalid, JWSInvalid, JWTInvalid, JWKInvalid, JWKSInvalid, JWKSNoMatchingKey, JWKSMultipleMatchingKeys, JWKSTimeout, JWSSignatureVerificationFailed;
-var init_errors = __esm({
-  "node_modules/jose/dist/browser/util/errors.js"() {
-    JOSEError = class extends Error {
-      constructor(message2, options) {
-        super(message2, options);
-        this.code = "ERR_JOSE_GENERIC";
-        this.name = this.constructor.name;
-        Error.captureStackTrace?.(this, this.constructor);
-      }
-    };
-    JOSEError.code = "ERR_JOSE_GENERIC";
-    JWTClaimValidationFailed = class extends JOSEError {
-      constructor(message2, payload, claim = "unspecified", reason = "unspecified") {
-        super(message2, { cause: { claim, reason, payload } });
-        this.code = "ERR_JWT_CLAIM_VALIDATION_FAILED";
-        this.claim = claim;
-        this.reason = reason;
-        this.payload = payload;
-      }
-    };
-    JWTClaimValidationFailed.code = "ERR_JWT_CLAIM_VALIDATION_FAILED";
-    JWTExpired = class extends JOSEError {
-      constructor(message2, payload, claim = "unspecified", reason = "unspecified") {
-        super(message2, { cause: { claim, reason, payload } });
-        this.code = "ERR_JWT_EXPIRED";
-        this.claim = claim;
-        this.reason = reason;
-        this.payload = payload;
-      }
-    };
-    JWTExpired.code = "ERR_JWT_EXPIRED";
-    JOSEAlgNotAllowed = class extends JOSEError {
-      constructor() {
-        super(...arguments);
-        this.code = "ERR_JOSE_ALG_NOT_ALLOWED";
-      }
-    };
-    JOSEAlgNotAllowed.code = "ERR_JOSE_ALG_NOT_ALLOWED";
-    JOSENotSupported = class extends JOSEError {
-      constructor() {
-        super(...arguments);
-        this.code = "ERR_JOSE_NOT_SUPPORTED";
-      }
-    };
-    JOSENotSupported.code = "ERR_JOSE_NOT_SUPPORTED";
-    JWEDecryptionFailed = class extends JOSEError {
-      constructor(message2 = "decryption operation failed", options) {
-        super(message2, options);
-        this.code = "ERR_JWE_DECRYPTION_FAILED";
-      }
-    };
-    JWEDecryptionFailed.code = "ERR_JWE_DECRYPTION_FAILED";
-    JWEInvalid = class extends JOSEError {
-      constructor() {
-        super(...arguments);
-        this.code = "ERR_JWE_INVALID";
-      }
-    };
-    JWEInvalid.code = "ERR_JWE_INVALID";
-    JWSInvalid = class extends JOSEError {
-      constructor() {
-        super(...arguments);
-        this.code = "ERR_JWS_INVALID";
-      }
-    };
-    JWSInvalid.code = "ERR_JWS_INVALID";
-    JWTInvalid = class extends JOSEError {
-      constructor() {
-        super(...arguments);
-        this.code = "ERR_JWT_INVALID";
-      }
-    };
-    JWTInvalid.code = "ERR_JWT_INVALID";
-    JWKInvalid = class extends JOSEError {
-      constructor() {
-        super(...arguments);
-        this.code = "ERR_JWK_INVALID";
-      }
-    };
-    JWKInvalid.code = "ERR_JWK_INVALID";
-    JWKSInvalid = class extends JOSEError {
-      constructor() {
-        super(...arguments);
-        this.code = "ERR_JWKS_INVALID";
-      }
-    };
-    JWKSInvalid.code = "ERR_JWKS_INVALID";
-    JWKSNoMatchingKey = class extends JOSEError {
-      constructor(message2 = "no applicable key found in the JSON Web Key Set", options) {
-        super(message2, options);
-        this.code = "ERR_JWKS_NO_MATCHING_KEY";
-      }
-    };
-    JWKSNoMatchingKey.code = "ERR_JWKS_NO_MATCHING_KEY";
-    JWKSMultipleMatchingKeys = class extends JOSEError {
-      constructor(message2 = "multiple matching keys found in the JSON Web Key Set", options) {
-        super(message2, options);
-        this.code = "ERR_JWKS_MULTIPLE_MATCHING_KEYS";
-      }
-    };
-    JWKSMultipleMatchingKeys.code = "ERR_JWKS_MULTIPLE_MATCHING_KEYS";
-    JWKSTimeout = class extends JOSEError {
-      constructor(message2 = "request timed out", options) {
-        super(message2, options);
-        this.code = "ERR_JWKS_TIMEOUT";
-      }
-    };
-    JWKSTimeout.code = "ERR_JWKS_TIMEOUT";
-    JWSSignatureVerificationFailed = class extends JOSEError {
-      constructor(message2 = "signature verification failed", options) {
-        super(message2, options);
-        this.code = "ERR_JWS_SIGNATURE_VERIFICATION_FAILED";
-      }
-    };
-    JWSSignatureVerificationFailed.code = "ERR_JWS_SIGNATURE_VERIFICATION_FAILED";
-  }
-});
-
-// node_modules/jose/dist/browser/lib/crypto_key.js
-function unusable(name, prop = "algorithm.name") {
-  return new TypeError(`CryptoKey does not support this operation, its ${prop} must be ${name}`);
-}
-function isAlgorithm(algorithm, name) {
-  return algorithm.name === name;
-}
-function getHashLength(hash) {
-  return parseInt(hash.name.slice(4), 10);
-}
-function getNamedCurve(alg) {
-  switch (alg) {
-    case "ES256":
-      return "P-256";
-    case "ES384":
-      return "P-384";
-    case "ES512":
-      return "P-521";
-    default:
-      throw new Error("unreachable");
-  }
-}
-function checkUsage(key, usages) {
-  if (usages.length && !usages.some((expected) => key.usages.includes(expected))) {
-    let msg = "CryptoKey does not support this operation, its usages must include ";
-    if (usages.length > 2) {
-      const last = usages.pop();
-      msg += `one of ${usages.join(", ")}, or ${last}.`;
-    } else if (usages.length === 2) {
-      msg += `one of ${usages[0]} or ${usages[1]}.`;
-    } else {
-      msg += `${usages[0]}.`;
-    }
-    throw new TypeError(msg);
-  }
-}
-function checkSigCryptoKey(key, alg, ...usages) {
-  switch (alg) {
-    case "HS256":
-    case "HS384":
-    case "HS512": {
-      if (!isAlgorithm(key.algorithm, "HMAC"))
-        throw unusable("HMAC");
-      const expected = parseInt(alg.slice(2), 10);
-      const actual = getHashLength(key.algorithm.hash);
-      if (actual !== expected)
-        throw unusable(`SHA-${expected}`, "algorithm.hash");
-      break;
-    }
-    case "RS256":
-    case "RS384":
-    case "RS512": {
-      if (!isAlgorithm(key.algorithm, "RSASSA-PKCS1-v1_5"))
-        throw unusable("RSASSA-PKCS1-v1_5");
-      const expected = parseInt(alg.slice(2), 10);
-      const actual = getHashLength(key.algorithm.hash);
-      if (actual !== expected)
-        throw unusable(`SHA-${expected}`, "algorithm.hash");
-      break;
-    }
-    case "PS256":
-    case "PS384":
-    case "PS512": {
-      if (!isAlgorithm(key.algorithm, "RSA-PSS"))
-        throw unusable("RSA-PSS");
-      const expected = parseInt(alg.slice(2), 10);
-      const actual = getHashLength(key.algorithm.hash);
-      if (actual !== expected)
-        throw unusable(`SHA-${expected}`, "algorithm.hash");
-      break;
-    }
-    case "EdDSA": {
-      if (key.algorithm.name !== "Ed25519" && key.algorithm.name !== "Ed448") {
-        throw unusable("Ed25519 or Ed448");
-      }
-      break;
-    }
-    case "Ed25519": {
-      if (!isAlgorithm(key.algorithm, "Ed25519"))
-        throw unusable("Ed25519");
-      break;
-    }
-    case "ES256":
-    case "ES384":
-    case "ES512": {
-      if (!isAlgorithm(key.algorithm, "ECDSA"))
-        throw unusable("ECDSA");
-      const expected = getNamedCurve(alg);
-      const actual = key.algorithm.namedCurve;
-      if (actual !== expected)
-        throw unusable(expected, "algorithm.namedCurve");
-      break;
-    }
-    default:
-      throw new TypeError("CryptoKey does not support this operation");
-  }
-  checkUsage(key, usages);
-}
-var init_crypto_key = __esm({
-  "node_modules/jose/dist/browser/lib/crypto_key.js"() {
-  }
-});
-
-// node_modules/jose/dist/browser/lib/invalid_key_input.js
-function message(msg, actual, ...types2) {
-  types2 = types2.filter(Boolean);
-  if (types2.length > 2) {
-    const last = types2.pop();
-    msg += `one of type ${types2.join(", ")}, or ${last}.`;
-  } else if (types2.length === 2) {
-    msg += `one of type ${types2[0]} or ${types2[1]}.`;
-  } else {
-    msg += `of type ${types2[0]}.`;
-  }
-  if (actual == null) {
-    msg += ` Received ${actual}`;
-  } else if (typeof actual === "function" && actual.name) {
-    msg += ` Received function ${actual.name}`;
-  } else if (typeof actual === "object" && actual != null) {
-    if (actual.constructor?.name) {
-      msg += ` Received an instance of ${actual.constructor.name}`;
-    }
-  }
-  return msg;
-}
-function withAlg(alg, actual, ...types2) {
-  return message(`Key for the ${alg} algorithm must be `, actual, ...types2);
-}
-var invalid_key_input_default;
-var init_invalid_key_input = __esm({
-  "node_modules/jose/dist/browser/lib/invalid_key_input.js"() {
-    invalid_key_input_default = (actual, ...types2) => {
-      return message("Key must be ", actual, ...types2);
-    };
-  }
-});
-
-// node_modules/jose/dist/browser/runtime/is_key_like.js
-var is_key_like_default, types;
-var init_is_key_like = __esm({
-  "node_modules/jose/dist/browser/runtime/is_key_like.js"() {
-    init_webcrypto();
-    is_key_like_default = (key) => {
-      if (isCryptoKey(key)) {
-        return true;
-      }
-      return key?.[Symbol.toStringTag] === "KeyObject";
-    };
-    types = ["CryptoKey"];
-  }
-});
-
-// node_modules/jose/dist/browser/lib/is_disjoint.js
-var isDisjoint, is_disjoint_default;
-var init_is_disjoint = __esm({
-  "node_modules/jose/dist/browser/lib/is_disjoint.js"() {
-    isDisjoint = (...headers) => {
-      const sources = headers.filter(Boolean);
-      if (sources.length === 0 || sources.length === 1) {
-        return true;
-      }
-      let acc;
-      for (const header of sources) {
-        const parameters = Object.keys(header);
-        if (!acc || acc.size === 0) {
-          acc = new Set(parameters);
-          continue;
-        }
-        for (const parameter of parameters) {
-          if (acc.has(parameter)) {
-            return false;
-          }
-          acc.add(parameter);
-        }
-      }
-      return true;
-    };
-    is_disjoint_default = isDisjoint;
-  }
-});
-
-// node_modules/jose/dist/browser/lib/is_object.js
-function isObjectLike(value) {
-  return typeof value === "object" && value !== null;
-}
-function isObject(input) {
-  if (!isObjectLike(input) || Object.prototype.toString.call(input) !== "[object Object]") {
-    return false;
-  }
-  if (Object.getPrototypeOf(input) === null) {
-    return true;
-  }
-  let proto = input;
-  while (Object.getPrototypeOf(proto) !== null) {
-    proto = Object.getPrototypeOf(proto);
-  }
-  return Object.getPrototypeOf(input) === proto;
-}
-var init_is_object = __esm({
-  "node_modules/jose/dist/browser/lib/is_object.js"() {
-  }
-});
-
-// node_modules/jose/dist/browser/runtime/check_key_length.js
-var check_key_length_default;
-var init_check_key_length = __esm({
-  "node_modules/jose/dist/browser/runtime/check_key_length.js"() {
-    check_key_length_default = (alg, key) => {
-      if (alg.startsWith("RS") || alg.startsWith("PS")) {
-        const { modulusLength } = key.algorithm;
-        if (typeof modulusLength !== "number" || modulusLength < 2048) {
-          throw new TypeError(`${alg} requires key modulusLength to be 2048 bits or larger`);
-        }
-      }
-    };
-  }
-});
-
-// node_modules/jose/dist/browser/lib/is_jwk.js
-function isJWK(key) {
-  return isObject(key) && typeof key.kty === "string";
-}
-function isPrivateJWK(key) {
-  return key.kty !== "oct" && typeof key.d === "string";
-}
-function isPublicJWK(key) {
-  return key.kty !== "oct" && typeof key.d === "undefined";
-}
-function isSecretJWK(key) {
-  return isJWK(key) && key.kty === "oct" && typeof key.k === "string";
-}
-var init_is_jwk = __esm({
-  "node_modules/jose/dist/browser/lib/is_jwk.js"() {
-    init_is_object();
-  }
-});
-
-// node_modules/jose/dist/browser/runtime/jwk_to_key.js
-function subtleMapping(jwk) {
-  let algorithm;
-  let keyUsages;
-  switch (jwk.kty) {
-    case "RSA": {
-      switch (jwk.alg) {
-        case "PS256":
-        case "PS384":
-        case "PS512":
-          algorithm = { name: "RSA-PSS", hash: `SHA-${jwk.alg.slice(-3)}` };
-          keyUsages = jwk.d ? ["sign"] : ["verify"];
-          break;
-        case "RS256":
-        case "RS384":
-        case "RS512":
-          algorithm = { name: "RSASSA-PKCS1-v1_5", hash: `SHA-${jwk.alg.slice(-3)}` };
-          keyUsages = jwk.d ? ["sign"] : ["verify"];
-          break;
-        case "RSA-OAEP":
-        case "RSA-OAEP-256":
-        case "RSA-OAEP-384":
-        case "RSA-OAEP-512":
-          algorithm = {
-            name: "RSA-OAEP",
-            hash: `SHA-${parseInt(jwk.alg.slice(-3), 10) || 1}`
-          };
-          keyUsages = jwk.d ? ["decrypt", "unwrapKey"] : ["encrypt", "wrapKey"];
-          break;
-        default:
-          throw new JOSENotSupported('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
-      }
-      break;
-    }
-    case "EC": {
-      switch (jwk.alg) {
-        case "ES256":
-          algorithm = { name: "ECDSA", namedCurve: "P-256" };
-          keyUsages = jwk.d ? ["sign"] : ["verify"];
-          break;
-        case "ES384":
-          algorithm = { name: "ECDSA", namedCurve: "P-384" };
-          keyUsages = jwk.d ? ["sign"] : ["verify"];
-          break;
-        case "ES512":
-          algorithm = { name: "ECDSA", namedCurve: "P-521" };
-          keyUsages = jwk.d ? ["sign"] : ["verify"];
-          break;
-        case "ECDH-ES":
-        case "ECDH-ES+A128KW":
-        case "ECDH-ES+A192KW":
-        case "ECDH-ES+A256KW":
-          algorithm = { name: "ECDH", namedCurve: jwk.crv };
-          keyUsages = jwk.d ? ["deriveBits"] : [];
-          break;
-        default:
-          throw new JOSENotSupported('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
-      }
-      break;
-    }
-    case "OKP": {
-      switch (jwk.alg) {
-        case "Ed25519":
-          algorithm = { name: "Ed25519" };
-          keyUsages = jwk.d ? ["sign"] : ["verify"];
-          break;
-        case "EdDSA":
-          algorithm = { name: jwk.crv };
-          keyUsages = jwk.d ? ["sign"] : ["verify"];
-          break;
-        case "ECDH-ES":
-        case "ECDH-ES+A128KW":
-        case "ECDH-ES+A192KW":
-        case "ECDH-ES+A256KW":
-          algorithm = { name: jwk.crv };
-          keyUsages = jwk.d ? ["deriveBits"] : [];
-          break;
-        default:
-          throw new JOSENotSupported('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
-      }
-      break;
-    }
-    default:
-      throw new JOSENotSupported('Invalid or unsupported JWK "kty" (Key Type) Parameter value');
-  }
-  return { algorithm, keyUsages };
-}
-var parse, jwk_to_key_default;
-var init_jwk_to_key = __esm({
-  "node_modules/jose/dist/browser/runtime/jwk_to_key.js"() {
-    init_webcrypto();
-    init_errors();
-    parse = async (jwk) => {
-      if (!jwk.alg) {
-        throw new TypeError('"alg" argument is required when "jwk.alg" is not present');
-      }
-      const { algorithm, keyUsages } = subtleMapping(jwk);
-      const rest = [
-        algorithm,
-        jwk.ext ?? false,
-        jwk.key_ops ?? keyUsages
-      ];
-      const keyData = { ...jwk };
-      delete keyData.alg;
-      delete keyData.use;
-      return webcrypto_default.subtle.importKey("jwk", keyData, ...rest);
-    };
-    jwk_to_key_default = parse;
-  }
-});
-
-// node_modules/jose/dist/browser/runtime/normalize_key.js
-var exportKeyValue, privCache, pubCache, isKeyObject, importAndCache, normalizePublicKey, normalizePrivateKey, normalize_key_default;
-var init_normalize_key = __esm({
-  "node_modules/jose/dist/browser/runtime/normalize_key.js"() {
-    init_is_jwk();
-    init_base64url();
-    init_jwk_to_key();
-    exportKeyValue = (k) => decode(k);
-    isKeyObject = (key) => {
-      return key?.[Symbol.toStringTag] === "KeyObject";
-    };
-    importAndCache = async (cache, key, jwk, alg, freeze = false) => {
-      let cached = cache.get(key);
-      if (cached?.[alg]) {
-        return cached[alg];
-      }
-      const cryptoKey = await jwk_to_key_default({ ...jwk, alg });
-      if (freeze)
-        Object.freeze(key);
-      if (!cached) {
-        cache.set(key, { [alg]: cryptoKey });
-      } else {
-        cached[alg] = cryptoKey;
-      }
-      return cryptoKey;
-    };
-    normalizePublicKey = (key, alg) => {
-      if (isKeyObject(key)) {
-        let jwk = key.export({ format: "jwk" });
-        delete jwk.d;
-        delete jwk.dp;
-        delete jwk.dq;
-        delete jwk.p;
-        delete jwk.q;
-        delete jwk.qi;
-        if (jwk.k) {
-          return exportKeyValue(jwk.k);
-        }
-        pubCache || (pubCache = /* @__PURE__ */ new WeakMap());
-        return importAndCache(pubCache, key, jwk, alg);
-      }
-      if (isJWK(key)) {
-        if (key.k)
-          return decode(key.k);
-        pubCache || (pubCache = /* @__PURE__ */ new WeakMap());
-        const cryptoKey = importAndCache(pubCache, key, key, alg, true);
-        return cryptoKey;
-      }
-      return key;
-    };
-    normalizePrivateKey = (key, alg) => {
-      if (isKeyObject(key)) {
-        let jwk = key.export({ format: "jwk" });
-        if (jwk.k) {
-          return exportKeyValue(jwk.k);
-        }
-        privCache || (privCache = /* @__PURE__ */ new WeakMap());
-        return importAndCache(privCache, key, jwk, alg);
-      }
-      if (isJWK(key)) {
-        if (key.k)
-          return decode(key.k);
-        privCache || (privCache = /* @__PURE__ */ new WeakMap());
-        const cryptoKey = importAndCache(privCache, key, key, alg, true);
-        return cryptoKey;
-      }
-      return key;
-    };
-    normalize_key_default = { normalizePublicKey, normalizePrivateKey };
-  }
-});
-
-// node_modules/jose/dist/browser/key/import.js
-async function importJWK(jwk, alg) {
-  if (!isObject(jwk)) {
-    throw new TypeError("JWK must be an object");
-  }
-  alg || (alg = jwk.alg);
-  switch (jwk.kty) {
-    case "oct":
-      if (typeof jwk.k !== "string" || !jwk.k) {
-        throw new TypeError('missing "k" (Key Value) Parameter value');
-      }
-      return decode(jwk.k);
-    case "RSA":
-      if ("oth" in jwk && jwk.oth !== void 0) {
-        throw new JOSENotSupported('RSA JWK "oth" (Other Primes Info) Parameter value is not supported');
-      }
-    case "EC":
-    case "OKP":
-      return jwk_to_key_default({ ...jwk, alg });
-    default:
-      throw new JOSENotSupported('Unsupported "kty" (Key Type) Parameter value');
-  }
-}
-var init_import = __esm({
-  "node_modules/jose/dist/browser/key/import.js"() {
-    init_base64url();
-    init_jwk_to_key();
-    init_errors();
-    init_is_object();
-  }
-});
-
-// node_modules/jose/dist/browser/lib/check_key_type.js
-function checkKeyType(allowJwk, alg, key, usage) {
-  const symmetric = alg.startsWith("HS") || alg === "dir" || alg.startsWith("PBES2") || /^A\d{3}(?:GCM)?KW$/.test(alg);
-  if (symmetric) {
-    symmetricTypeCheck(alg, key, usage, allowJwk);
-  } else {
-    asymmetricTypeCheck(alg, key, usage, allowJwk);
-  }
-}
-var tag, jwkMatchesOp, symmetricTypeCheck, asymmetricTypeCheck, check_key_type_default, checkKeyTypeWithJwk;
-var init_check_key_type = __esm({
-  "node_modules/jose/dist/browser/lib/check_key_type.js"() {
-    init_invalid_key_input();
-    init_is_key_like();
-    init_is_jwk();
-    tag = (key) => key?.[Symbol.toStringTag];
-    jwkMatchesOp = (alg, key, usage) => {
-      if (key.use !== void 0 && key.use !== "sig") {
-        throw new TypeError("Invalid key for this operation, when present its use must be sig");
-      }
-      if (key.key_ops !== void 0 && key.key_ops.includes?.(usage) !== true) {
-        throw new TypeError(`Invalid key for this operation, when present its key_ops must include ${usage}`);
-      }
-      if (key.alg !== void 0 && key.alg !== alg) {
-        throw new TypeError(`Invalid key for this operation, when present its alg must be ${alg}`);
-      }
-      return true;
-    };
-    symmetricTypeCheck = (alg, key, usage, allowJwk) => {
-      if (key instanceof Uint8Array)
-        return;
-      if (allowJwk && isJWK(key)) {
-        if (isSecretJWK(key) && jwkMatchesOp(alg, key, usage))
-          return;
-        throw new TypeError(`JSON Web Key for symmetric algorithms must have JWK "kty" (Key Type) equal to "oct" and the JWK "k" (Key Value) present`);
-      }
-      if (!is_key_like_default(key)) {
-        throw new TypeError(withAlg(alg, key, ...types, "Uint8Array", allowJwk ? "JSON Web Key" : null));
-      }
-      if (key.type !== "secret") {
-        throw new TypeError(`${tag(key)} instances for symmetric algorithms must be of type "secret"`);
-      }
-    };
-    asymmetricTypeCheck = (alg, key, usage, allowJwk) => {
-      if (allowJwk && isJWK(key)) {
-        switch (usage) {
-          case "sign":
-            if (isPrivateJWK(key) && jwkMatchesOp(alg, key, usage))
-              return;
-            throw new TypeError(`JSON Web Key for this operation be a private JWK`);
-          case "verify":
-            if (isPublicJWK(key) && jwkMatchesOp(alg, key, usage))
-              return;
-            throw new TypeError(`JSON Web Key for this operation be a public JWK`);
-        }
-      }
-      if (!is_key_like_default(key)) {
-        throw new TypeError(withAlg(alg, key, ...types, allowJwk ? "JSON Web Key" : null));
-      }
-      if (key.type === "secret") {
-        throw new TypeError(`${tag(key)} instances for asymmetric algorithms must not be of type "secret"`);
-      }
-      if (usage === "sign" && key.type === "public") {
-        throw new TypeError(`${tag(key)} instances for asymmetric algorithm signing must be of type "private"`);
-      }
-      if (usage === "decrypt" && key.type === "public") {
-        throw new TypeError(`${tag(key)} instances for asymmetric algorithm decryption must be of type "private"`);
-      }
-      if (key.algorithm && usage === "verify" && key.type === "private") {
-        throw new TypeError(`${tag(key)} instances for asymmetric algorithm verifying must be of type "public"`);
-      }
-      if (key.algorithm && usage === "encrypt" && key.type === "private") {
-        throw new TypeError(`${tag(key)} instances for asymmetric algorithm encryption must be of type "public"`);
-      }
-    };
-    check_key_type_default = checkKeyType.bind(void 0, false);
-    checkKeyTypeWithJwk = checkKeyType.bind(void 0, true);
-  }
-});
-
-// node_modules/jose/dist/browser/lib/validate_crit.js
-function validateCrit(Err, recognizedDefault, recognizedOption, protectedHeader, joseHeader) {
-  if (joseHeader.crit !== void 0 && protectedHeader?.crit === void 0) {
-    throw new Err('"crit" (Critical) Header Parameter MUST be integrity protected');
-  }
-  if (!protectedHeader || protectedHeader.crit === void 0) {
-    return /* @__PURE__ */ new Set();
-  }
-  if (!Array.isArray(protectedHeader.crit) || protectedHeader.crit.length === 0 || protectedHeader.crit.some((input) => typeof input !== "string" || input.length === 0)) {
-    throw new Err('"crit" (Critical) Header Parameter MUST be an array of non-empty strings when present');
-  }
-  let recognized;
-  if (recognizedOption !== void 0) {
-    recognized = new Map([...Object.entries(recognizedOption), ...recognizedDefault.entries()]);
-  } else {
-    recognized = recognizedDefault;
-  }
-  for (const parameter of protectedHeader.crit) {
-    if (!recognized.has(parameter)) {
-      throw new JOSENotSupported(`Extension Header Parameter "${parameter}" is not recognized`);
-    }
-    if (joseHeader[parameter] === void 0) {
-      throw new Err(`Extension Header Parameter "${parameter}" is missing`);
-    }
-    if (recognized.get(parameter) && protectedHeader[parameter] === void 0) {
-      throw new Err(`Extension Header Parameter "${parameter}" MUST be integrity protected`);
-    }
-  }
-  return new Set(protectedHeader.crit);
-}
-var validate_crit_default;
-var init_validate_crit = __esm({
-  "node_modules/jose/dist/browser/lib/validate_crit.js"() {
-    init_errors();
-    validate_crit_default = validateCrit;
-  }
-});
-
-// node_modules/jose/dist/browser/lib/validate_algorithms.js
-var validateAlgorithms, validate_algorithms_default;
-var init_validate_algorithms = __esm({
-  "node_modules/jose/dist/browser/lib/validate_algorithms.js"() {
-    validateAlgorithms = (option, algorithms) => {
-      if (algorithms !== void 0 && (!Array.isArray(algorithms) || algorithms.some((s) => typeof s !== "string"))) {
-        throw new TypeError(`"${option}" option must be an array of strings`);
-      }
-      if (!algorithms) {
-        return void 0;
-      }
-      return new Set(algorithms);
-    };
-    validate_algorithms_default = validateAlgorithms;
-  }
-});
-
-// node_modules/jose/dist/browser/runtime/subtle_dsa.js
-function subtleDsa(alg, algorithm) {
-  const hash = `SHA-${alg.slice(-3)}`;
-  switch (alg) {
-    case "HS256":
-    case "HS384":
-    case "HS512":
-      return { hash, name: "HMAC" };
-    case "PS256":
-    case "PS384":
-    case "PS512":
-      return { hash, name: "RSA-PSS", saltLength: alg.slice(-3) >> 3 };
-    case "RS256":
-    case "RS384":
-    case "RS512":
-      return { hash, name: "RSASSA-PKCS1-v1_5" };
-    case "ES256":
-    case "ES384":
-    case "ES512":
-      return { hash, name: "ECDSA", namedCurve: algorithm.namedCurve };
-    case "Ed25519":
-      return { name: "Ed25519" };
-    case "EdDSA":
-      return { name: algorithm.name };
-    default:
-      throw new JOSENotSupported(`alg ${alg} is not supported either by JOSE or your javascript runtime`);
-  }
-}
-var init_subtle_dsa = __esm({
-  "node_modules/jose/dist/browser/runtime/subtle_dsa.js"() {
-    init_errors();
-  }
-});
-
-// node_modules/jose/dist/browser/runtime/get_sign_verify_key.js
-async function getCryptoKey(alg, key, usage) {
-  if (usage === "sign") {
-    key = await normalize_key_default.normalizePrivateKey(key, alg);
-  }
-  if (usage === "verify") {
-    key = await normalize_key_default.normalizePublicKey(key, alg);
-  }
-  if (isCryptoKey(key)) {
-    checkSigCryptoKey(key, alg, usage);
-    return key;
-  }
-  if (key instanceof Uint8Array) {
-    if (!alg.startsWith("HS")) {
-      throw new TypeError(invalid_key_input_default(key, ...types));
-    }
-    return webcrypto_default.subtle.importKey("raw", key, { hash: `SHA-${alg.slice(-3)}`, name: "HMAC" }, false, [usage]);
-  }
-  throw new TypeError(invalid_key_input_default(key, ...types, "Uint8Array", "JSON Web Key"));
-}
-var init_get_sign_verify_key = __esm({
-  "node_modules/jose/dist/browser/runtime/get_sign_verify_key.js"() {
-    init_webcrypto();
-    init_crypto_key();
-    init_invalid_key_input();
-    init_is_key_like();
-    init_normalize_key();
-  }
-});
-
-// node_modules/jose/dist/browser/runtime/verify.js
-var verify, verify_default;
-var init_verify = __esm({
-  "node_modules/jose/dist/browser/runtime/verify.js"() {
-    init_subtle_dsa();
-    init_webcrypto();
-    init_check_key_length();
-    init_get_sign_verify_key();
-    verify = async (alg, key, signature, data) => {
-      const cryptoKey = await getCryptoKey(alg, key, "verify");
-      check_key_length_default(alg, cryptoKey);
-      const algorithm = subtleDsa(alg, cryptoKey.algorithm);
-      try {
-        return await webcrypto_default.subtle.verify(algorithm, cryptoKey, signature, data);
-      } catch {
-        return false;
-      }
-    };
-    verify_default = verify;
-  }
-});
-
-// node_modules/jose/dist/browser/jws/flattened/verify.js
-async function flattenedVerify(jws, key, options) {
-  if (!isObject(jws)) {
-    throw new JWSInvalid("Flattened JWS must be an object");
-  }
-  if (jws.protected === void 0 && jws.header === void 0) {
-    throw new JWSInvalid('Flattened JWS must have either of the "protected" or "header" members');
-  }
-  if (jws.protected !== void 0 && typeof jws.protected !== "string") {
-    throw new JWSInvalid("JWS Protected Header incorrect type");
-  }
-  if (jws.payload === void 0) {
-    throw new JWSInvalid("JWS Payload missing");
-  }
-  if (typeof jws.signature !== "string") {
-    throw new JWSInvalid("JWS Signature missing or incorrect type");
-  }
-  if (jws.header !== void 0 && !isObject(jws.header)) {
-    throw new JWSInvalid("JWS Unprotected Header incorrect type");
-  }
-  let parsedProt = {};
-  if (jws.protected) {
-    try {
-      const protectedHeader = decode(jws.protected);
-      parsedProt = JSON.parse(decoder.decode(protectedHeader));
-    } catch {
-      throw new JWSInvalid("JWS Protected Header is invalid");
-    }
-  }
-  if (!is_disjoint_default(parsedProt, jws.header)) {
-    throw new JWSInvalid("JWS Protected and JWS Unprotected Header Parameter names must be disjoint");
-  }
-  const joseHeader = {
-    ...parsedProt,
-    ...jws.header
-  };
-  const extensions = validate_crit_default(JWSInvalid, /* @__PURE__ */ new Map([["b64", true]]), options?.crit, parsedProt, joseHeader);
-  let b64 = true;
-  if (extensions.has("b64")) {
-    b64 = parsedProt.b64;
-    if (typeof b64 !== "boolean") {
-      throw new JWSInvalid('The "b64" (base64url-encode payload) Header Parameter must be a boolean');
-    }
-  }
-  const { alg } = joseHeader;
-  if (typeof alg !== "string" || !alg) {
-    throw new JWSInvalid('JWS "alg" (Algorithm) Header Parameter missing or invalid');
-  }
-  const algorithms = options && validate_algorithms_default("algorithms", options.algorithms);
-  if (algorithms && !algorithms.has(alg)) {
-    throw new JOSEAlgNotAllowed('"alg" (Algorithm) Header Parameter value not allowed');
-  }
-  if (b64) {
-    if (typeof jws.payload !== "string") {
-      throw new JWSInvalid("JWS Payload must be a string");
-    }
-  } else if (typeof jws.payload !== "string" && !(jws.payload instanceof Uint8Array)) {
-    throw new JWSInvalid("JWS Payload must be a string or an Uint8Array instance");
-  }
-  let resolvedKey = false;
-  if (typeof key === "function") {
-    key = await key(parsedProt, jws);
-    resolvedKey = true;
-    checkKeyTypeWithJwk(alg, key, "verify");
-    if (isJWK(key)) {
-      key = await importJWK(key, alg);
-    }
-  } else {
-    checkKeyTypeWithJwk(alg, key, "verify");
-  }
-  const data = concat(encoder.encode(jws.protected ?? ""), encoder.encode("."), typeof jws.payload === "string" ? encoder.encode(jws.payload) : jws.payload);
-  let signature;
-  try {
-    signature = decode(jws.signature);
-  } catch {
-    throw new JWSInvalid("Failed to base64url decode the signature");
-  }
-  const verified = await verify_default(alg, key, signature, data);
-  if (!verified) {
-    throw new JWSSignatureVerificationFailed();
-  }
-  let payload;
-  if (b64) {
-    try {
-      payload = decode(jws.payload);
-    } catch {
-      throw new JWSInvalid("Failed to base64url decode the payload");
-    }
-  } else if (typeof jws.payload === "string") {
-    payload = encoder.encode(jws.payload);
-  } else {
-    payload = jws.payload;
-  }
-  const result = { payload };
-  if (jws.protected !== void 0) {
-    result.protectedHeader = parsedProt;
-  }
-  if (jws.header !== void 0) {
-    result.unprotectedHeader = jws.header;
-  }
-  if (resolvedKey) {
-    return { ...result, key };
-  }
-  return result;
-}
-var init_verify2 = __esm({
-  "node_modules/jose/dist/browser/jws/flattened/verify.js"() {
-    init_base64url();
-    init_verify();
-    init_errors();
-    init_buffer_utils();
-    init_is_disjoint();
-    init_is_object();
-    init_check_key_type();
-    init_validate_crit();
-    init_validate_algorithms();
-    init_is_jwk();
-    init_import();
-  }
-});
-
-// node_modules/jose/dist/browser/jws/compact/verify.js
-async function compactVerify(jws, key, options) {
-  if (jws instanceof Uint8Array) {
-    jws = decoder.decode(jws);
-  }
-  if (typeof jws !== "string") {
-    throw new JWSInvalid("Compact JWS must be a string or Uint8Array");
-  }
-  const { 0: protectedHeader, 1: payload, 2: signature, length } = jws.split(".");
-  if (length !== 3) {
-    throw new JWSInvalid("Invalid Compact JWS");
-  }
-  const verified = await flattenedVerify({ payload, protected: protectedHeader, signature }, key, options);
-  const result = { payload: verified.payload, protectedHeader: verified.protectedHeader };
-  if (typeof key === "function") {
-    return { ...result, key: verified.key };
-  }
-  return result;
-}
-var init_verify3 = __esm({
-  "node_modules/jose/dist/browser/jws/compact/verify.js"() {
-    init_verify2();
-    init_errors();
-    init_buffer_utils();
-  }
-});
-
-// node_modules/jose/dist/browser/lib/epoch.js
-var epoch_default;
-var init_epoch = __esm({
-  "node_modules/jose/dist/browser/lib/epoch.js"() {
-    epoch_default = (date) => Math.floor(date.getTime() / 1e3);
-  }
-});
-
-// node_modules/jose/dist/browser/lib/secs.js
-var minute, hour, day, week, year, REGEX, secs_default;
-var init_secs = __esm({
-  "node_modules/jose/dist/browser/lib/secs.js"() {
-    minute = 60;
-    hour = minute * 60;
-    day = hour * 24;
-    week = day * 7;
-    year = day * 365.25;
-    REGEX = /^(\+|\-)? ?(\d+|\d+\.\d+) ?(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)(?: (ago|from now))?$/i;
-    secs_default = (str) => {
-      const matched = REGEX.exec(str);
-      if (!matched || matched[4] && matched[1]) {
-        throw new TypeError("Invalid time period format");
-      }
-      const value = parseFloat(matched[2]);
-      const unit = matched[3].toLowerCase();
-      let numericDate;
-      switch (unit) {
-        case "sec":
-        case "secs":
-        case "second":
-        case "seconds":
-        case "s":
-          numericDate = Math.round(value);
-          break;
-        case "minute":
-        case "minutes":
-        case "min":
-        case "mins":
-        case "m":
-          numericDate = Math.round(value * minute);
-          break;
-        case "hour":
-        case "hours":
-        case "hr":
-        case "hrs":
-        case "h":
-          numericDate = Math.round(value * hour);
-          break;
-        case "day":
-        case "days":
-        case "d":
-          numericDate = Math.round(value * day);
-          break;
-        case "week":
-        case "weeks":
-        case "w":
-          numericDate = Math.round(value * week);
-          break;
-        default:
-          numericDate = Math.round(value * year);
-          break;
-      }
-      if (matched[1] === "-" || matched[4] === "ago") {
-        return -numericDate;
-      }
-      return numericDate;
-    };
-  }
-});
-
-// node_modules/jose/dist/browser/lib/jwt_claims_set.js
-var normalizeTyp, checkAudiencePresence, jwt_claims_set_default;
-var init_jwt_claims_set = __esm({
-  "node_modules/jose/dist/browser/lib/jwt_claims_set.js"() {
-    init_errors();
-    init_buffer_utils();
-    init_epoch();
-    init_secs();
-    init_is_object();
-    normalizeTyp = (value) => value.toLowerCase().replace(/^application\//, "");
-    checkAudiencePresence = (audPayload, audOption) => {
-      if (typeof audPayload === "string") {
-        return audOption.includes(audPayload);
-      }
-      if (Array.isArray(audPayload)) {
-        return audOption.some(Set.prototype.has.bind(new Set(audPayload)));
-      }
-      return false;
-    };
-    jwt_claims_set_default = (protectedHeader, encodedPayload, options = {}) => {
-      let payload;
-      try {
-        payload = JSON.parse(decoder.decode(encodedPayload));
-      } catch {
-      }
-      if (!isObject(payload)) {
-        throw new JWTInvalid("JWT Claims Set must be a top-level JSON object");
-      }
-      const { typ } = options;
-      if (typ && (typeof protectedHeader.typ !== "string" || normalizeTyp(protectedHeader.typ) !== normalizeTyp(typ))) {
-        throw new JWTClaimValidationFailed('unexpected "typ" JWT header value', payload, "typ", "check_failed");
-      }
-      const { requiredClaims = [], issuer, subject, audience, maxTokenAge } = options;
-      const presenceCheck = [...requiredClaims];
-      if (maxTokenAge !== void 0)
-        presenceCheck.push("iat");
-      if (audience !== void 0)
-        presenceCheck.push("aud");
-      if (subject !== void 0)
-        presenceCheck.push("sub");
-      if (issuer !== void 0)
-        presenceCheck.push("iss");
-      for (const claim of new Set(presenceCheck.reverse())) {
-        if (!(claim in payload)) {
-          throw new JWTClaimValidationFailed(`missing required "${claim}" claim`, payload, claim, "missing");
-        }
-      }
-      if (issuer && !(Array.isArray(issuer) ? issuer : [issuer]).includes(payload.iss)) {
-        throw new JWTClaimValidationFailed('unexpected "iss" claim value', payload, "iss", "check_failed");
-      }
-      if (subject && payload.sub !== subject) {
-        throw new JWTClaimValidationFailed('unexpected "sub" claim value', payload, "sub", "check_failed");
-      }
-      if (audience && !checkAudiencePresence(payload.aud, typeof audience === "string" ? [audience] : audience)) {
-        throw new JWTClaimValidationFailed('unexpected "aud" claim value', payload, "aud", "check_failed");
-      }
-      let tolerance;
-      switch (typeof options.clockTolerance) {
-        case "string":
-          tolerance = secs_default(options.clockTolerance);
-          break;
-        case "number":
-          tolerance = options.clockTolerance;
-          break;
-        case "undefined":
-          tolerance = 0;
-          break;
-        default:
-          throw new TypeError("Invalid clockTolerance option type");
-      }
-      const { currentDate } = options;
-      const now = epoch_default(currentDate || /* @__PURE__ */ new Date());
-      if ((payload.iat !== void 0 || maxTokenAge) && typeof payload.iat !== "number") {
-        throw new JWTClaimValidationFailed('"iat" claim must be a number', payload, "iat", "invalid");
-      }
-      if (payload.nbf !== void 0) {
-        if (typeof payload.nbf !== "number") {
-          throw new JWTClaimValidationFailed('"nbf" claim must be a number', payload, "nbf", "invalid");
-        }
-        if (payload.nbf > now + tolerance) {
-          throw new JWTClaimValidationFailed('"nbf" claim timestamp check failed', payload, "nbf", "check_failed");
-        }
-      }
-      if (payload.exp !== void 0) {
-        if (typeof payload.exp !== "number") {
-          throw new JWTClaimValidationFailed('"exp" claim must be a number', payload, "exp", "invalid");
-        }
-        if (payload.exp <= now - tolerance) {
-          throw new JWTExpired('"exp" claim timestamp check failed', payload, "exp", "check_failed");
-        }
-      }
-      if (maxTokenAge) {
-        const age = now - payload.iat;
-        const max = typeof maxTokenAge === "number" ? maxTokenAge : secs_default(maxTokenAge);
-        if (age - tolerance > max) {
-          throw new JWTExpired('"iat" claim timestamp check failed (too far in the past)', payload, "iat", "check_failed");
-        }
-        if (age < 0 - tolerance) {
-          throw new JWTClaimValidationFailed('"iat" claim timestamp check failed (it should be in the past)', payload, "iat", "check_failed");
-        }
-      }
-      return payload;
-    };
-  }
-});
-
-// node_modules/jose/dist/browser/jwt/verify.js
-async function jwtVerify(jwt, key, options) {
-  const verified = await compactVerify(jwt, key, options);
-  if (verified.protectedHeader.crit?.includes("b64") && verified.protectedHeader.b64 === false) {
-    throw new JWTInvalid("JWTs MUST NOT use unencoded payload");
-  }
-  const payload = jwt_claims_set_default(verified.protectedHeader, verified.payload, options);
-  const result = { payload, protectedHeader: verified.protectedHeader };
-  if (typeof key === "function") {
-    return { ...result, key: verified.key };
-  }
-  return result;
-}
-var init_verify4 = __esm({
-  "node_modules/jose/dist/browser/jwt/verify.js"() {
-    init_verify3();
-    init_jwt_claims_set();
-    init_errors();
-  }
-});
-
-// node_modules/jose/dist/browser/runtime/sign.js
-var sign, sign_default;
-var init_sign = __esm({
-  "node_modules/jose/dist/browser/runtime/sign.js"() {
-    init_subtle_dsa();
-    init_webcrypto();
-    init_check_key_length();
-    init_get_sign_verify_key();
-    sign = async (alg, key, data) => {
-      const cryptoKey = await getCryptoKey(alg, key, "sign");
-      check_key_length_default(alg, cryptoKey);
-      const signature = await webcrypto_default.subtle.sign(subtleDsa(alg, cryptoKey.algorithm), cryptoKey, data);
-      return new Uint8Array(signature);
-    };
-    sign_default = sign;
-  }
-});
-
-// node_modules/jose/dist/browser/jws/flattened/sign.js
-var FlattenedSign;
-var init_sign2 = __esm({
-  "node_modules/jose/dist/browser/jws/flattened/sign.js"() {
-    init_base64url();
-    init_sign();
-    init_is_disjoint();
-    init_errors();
-    init_buffer_utils();
-    init_check_key_type();
-    init_validate_crit();
-    FlattenedSign = class {
-      constructor(payload) {
-        if (!(payload instanceof Uint8Array)) {
-          throw new TypeError("payload must be an instance of Uint8Array");
-        }
-        this._payload = payload;
-      }
-      setProtectedHeader(protectedHeader) {
-        if (this._protectedHeader) {
-          throw new TypeError("setProtectedHeader can only be called once");
-        }
-        this._protectedHeader = protectedHeader;
-        return this;
-      }
-      setUnprotectedHeader(unprotectedHeader) {
-        if (this._unprotectedHeader) {
-          throw new TypeError("setUnprotectedHeader can only be called once");
-        }
-        this._unprotectedHeader = unprotectedHeader;
-        return this;
-      }
-      async sign(key, options) {
-        if (!this._protectedHeader && !this._unprotectedHeader) {
-          throw new JWSInvalid("either setProtectedHeader or setUnprotectedHeader must be called before #sign()");
-        }
-        if (!is_disjoint_default(this._protectedHeader, this._unprotectedHeader)) {
-          throw new JWSInvalid("JWS Protected and JWS Unprotected Header Parameter names must be disjoint");
-        }
-        const joseHeader = {
-          ...this._protectedHeader,
-          ...this._unprotectedHeader
-        };
-        const extensions = validate_crit_default(JWSInvalid, /* @__PURE__ */ new Map([["b64", true]]), options?.crit, this._protectedHeader, joseHeader);
-        let b64 = true;
-        if (extensions.has("b64")) {
-          b64 = this._protectedHeader.b64;
-          if (typeof b64 !== "boolean") {
-            throw new JWSInvalid('The "b64" (base64url-encode payload) Header Parameter must be a boolean');
-          }
-        }
-        const { alg } = joseHeader;
-        if (typeof alg !== "string" || !alg) {
-          throw new JWSInvalid('JWS "alg" (Algorithm) Header Parameter missing or invalid');
-        }
-        checkKeyTypeWithJwk(alg, key, "sign");
-        let payload = this._payload;
-        if (b64) {
-          payload = encoder.encode(encode(payload));
-        }
-        let protectedHeader;
-        if (this._protectedHeader) {
-          protectedHeader = encoder.encode(encode(JSON.stringify(this._protectedHeader)));
-        } else {
-          protectedHeader = encoder.encode("");
-        }
-        const data = concat(protectedHeader, encoder.encode("."), payload);
-        const signature = await sign_default(alg, key, data);
-        const jws = {
-          signature: encode(signature),
-          payload: ""
-        };
-        if (b64) {
-          jws.payload = decoder.decode(payload);
-        }
-        if (this._unprotectedHeader) {
-          jws.header = this._unprotectedHeader;
-        }
-        if (this._protectedHeader) {
-          jws.protected = decoder.decode(protectedHeader);
-        }
-        return jws;
-      }
-    };
-  }
-});
-
-// node_modules/jose/dist/browser/jws/compact/sign.js
-var CompactSign;
-var init_sign3 = __esm({
-  "node_modules/jose/dist/browser/jws/compact/sign.js"() {
-    init_sign2();
-    CompactSign = class {
-      constructor(payload) {
-        this._flattened = new FlattenedSign(payload);
-      }
-      setProtectedHeader(protectedHeader) {
-        this._flattened.setProtectedHeader(protectedHeader);
-        return this;
-      }
-      async sign(key, options) {
-        const jws = await this._flattened.sign(key, options);
-        if (jws.payload === void 0) {
-          throw new TypeError("use the flattened module for creating JWS with b64: false");
-        }
-        return `${jws.protected}.${jws.payload}.${jws.signature}`;
-      }
-    };
-  }
-});
-
-// node_modules/jose/dist/browser/jwt/produce.js
-function validateInput(label, input) {
-  if (!Number.isFinite(input)) {
-    throw new TypeError(`Invalid ${label} input`);
-  }
-  return input;
-}
-var ProduceJWT;
-var init_produce = __esm({
-  "node_modules/jose/dist/browser/jwt/produce.js"() {
-    init_epoch();
-    init_is_object();
-    init_secs();
-    ProduceJWT = class {
-      constructor(payload = {}) {
-        if (!isObject(payload)) {
-          throw new TypeError("JWT Claims Set MUST be an object");
-        }
-        this._payload = payload;
-      }
-      setIssuer(issuer) {
-        this._payload = { ...this._payload, iss: issuer };
-        return this;
-      }
-      setSubject(subject) {
-        this._payload = { ...this._payload, sub: subject };
-        return this;
-      }
-      setAudience(audience) {
-        this._payload = { ...this._payload, aud: audience };
-        return this;
-      }
-      setJti(jwtId) {
-        this._payload = { ...this._payload, jti: jwtId };
-        return this;
-      }
-      setNotBefore(input) {
-        if (typeof input === "number") {
-          this._payload = { ...this._payload, nbf: validateInput("setNotBefore", input) };
-        } else if (input instanceof Date) {
-          this._payload = { ...this._payload, nbf: validateInput("setNotBefore", epoch_default(input)) };
-        } else {
-          this._payload = { ...this._payload, nbf: epoch_default(/* @__PURE__ */ new Date()) + secs_default(input) };
-        }
-        return this;
-      }
-      setExpirationTime(input) {
-        if (typeof input === "number") {
-          this._payload = { ...this._payload, exp: validateInput("setExpirationTime", input) };
-        } else if (input instanceof Date) {
-          this._payload = { ...this._payload, exp: validateInput("setExpirationTime", epoch_default(input)) };
-        } else {
-          this._payload = { ...this._payload, exp: epoch_default(/* @__PURE__ */ new Date()) + secs_default(input) };
-        }
-        return this;
-      }
-      setIssuedAt(input) {
-        if (typeof input === "undefined") {
-          this._payload = { ...this._payload, iat: epoch_default(/* @__PURE__ */ new Date()) };
-        } else if (input instanceof Date) {
-          this._payload = { ...this._payload, iat: validateInput("setIssuedAt", epoch_default(input)) };
-        } else if (typeof input === "string") {
-          this._payload = {
-            ...this._payload,
-            iat: validateInput("setIssuedAt", epoch_default(/* @__PURE__ */ new Date()) + secs_default(input))
-          };
-        } else {
-          this._payload = { ...this._payload, iat: validateInput("setIssuedAt", input) };
-        }
-        return this;
-      }
-    };
-  }
-});
-
-// node_modules/jose/dist/browser/jwt/sign.js
-var SignJWT;
-var init_sign4 = __esm({
-  "node_modules/jose/dist/browser/jwt/sign.js"() {
-    init_sign3();
-    init_errors();
-    init_buffer_utils();
-    init_produce();
-    SignJWT = class extends ProduceJWT {
-      setProtectedHeader(protectedHeader) {
-        this._protectedHeader = protectedHeader;
-        return this;
-      }
-      async sign(key, options) {
-        const sig = new CompactSign(encoder.encode(JSON.stringify(this._payload)));
-        sig.setProtectedHeader(this._protectedHeader);
-        if (Array.isArray(this._protectedHeader?.crit) && this._protectedHeader.crit.includes("b64") && this._protectedHeader.b64 === false) {
-          throw new JWTInvalid("JWTs MUST NOT use unencoded payload");
-        }
-        return sig.sign(key, options);
-      }
-    };
-  }
-});
-
-// node_modules/jose/dist/browser/util/base64url.js
-var init_base64url2 = __esm({
-  "node_modules/jose/dist/browser/util/base64url.js"() {
-  }
-});
-
-// node_modules/jose/dist/browser/index.js
-var init_browser = __esm({
-  "node_modules/jose/dist/browser/index.js"() {
-    init_verify4();
-    init_sign4();
-    init_errors();
-    init_base64url2();
-  }
-});
-
-// src/auth.ts
-var auth_exports = {};
-__export(auth_exports, {
-  adminMiddleware: () => adminMiddleware,
-  authMiddleware: () => authMiddleware,
-  generateToken: () => generateToken,
-  hashPassword: () => hashPassword,
-  login: () => login,
-  verifyPassword: () => verifyPassword,
-  verifyToken: () => verifyToken
-});
-async function generateToken(username, isAdmin, secret) {
-  const secretKey = new TextEncoder().encode(secret);
-  const now = Math.floor(Date.now() / 1e3);
-  const token = await new SignJWT({
-    sub: username,
-    isAdmin
-  }).setProtectedHeader({ alg: "HS256" }).setIssuedAt(now).setExpirationTime(now + 7 * 24 * 60 * 60).sign(secretKey);
-  return token;
-}
-async function verifyToken(token, secret) {
-  try {
-    const secretKey = new TextEncoder().encode(secret);
-    const { payload } = await jwtVerify(token, secretKey);
-    return {
-      sub: payload.sub,
-      isAdmin: payload.isAdmin,
-      iat: payload.iat,
-      exp: payload.exp
-    };
-  } catch {
-    return null;
-  }
-}
-async function hashPassword(password) {
-  const encoder2 = new TextEncoder();
-  const data = encoder2.encode(password);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b2) => b2.toString(16).padStart(2, "0")).join("");
-}
-async function verifyPassword(password, hash) {
-  const inputHash = await hashPassword(password);
-  return inputHash === hash;
-}
-async function login(username, password, storage, env) {
-  if (username === env.ADMIN_USERNAME) {
-    if (password === env.ADMIN_PASSWORD) {
-      const token2 = await generateToken(username, true, env.AUTH_SECRET);
-      return { success: true, token: token2 };
-    }
-    return { success: false, error: "\u5BC6\u7801\u9519\u8BEF" };
-  }
-  const user = await storage.get(`${STORAGE_KEYS.USERS_PREFIX}${username}`);
-  if (!user) {
-    return { success: false, error: "\u7528\u6237\u4E0D\u5B58\u5728" };
-  }
-  const isValid = await verifyPassword(password, user.passwordHash);
-  if (!isValid) {
-    return { success: false, error: "\u5BC6\u7801\u9519\u8BEF" };
-  }
-  user.lastLogin = (/* @__PURE__ */ new Date()).toISOString();
-  await storage.set(`${STORAGE_KEYS.USERS_PREFIX}${username}`, user);
-  const token = await generateToken(username, user.isAdmin, env.AUTH_SECRET);
-  return { success: true, token };
-}
-function authMiddleware(env) {
-  return async (c, next) => {
-    const authHeader = c.req.header("Authorization");
-    let token = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : c.req.header("Cookie")?.match(/token=([^;]+)/)?.[1];
-    if (!token) {
-      return c.json({ error: "\u672A\u767B\u5F55" }, 401);
-    }
-    const payload = await verifyToken(token, env.AUTH_SECRET);
-    if (!payload) {
-      return c.json({ error: "Token \u65E0\u6548\u6216\u5DF2\u8FC7\u671F" }, 401);
-    }
-    c.set("user", payload);
-    await next();
-  };
-}
-function adminMiddleware() {
-  return async (c, next) => {
-    const user = c.get("user");
-    if (!user?.isAdmin) {
-      return c.json({ error: "\u9700\u8981\u7BA1\u7406\u5458\u6743\u9650" }, 403);
-    }
-    await next();
-  };
-}
-var init_auth = __esm({
-  "src/auth.ts"() {
-    "use strict";
-    init_browser();
-    init_storage();
-  }
-});
-
-// src/scheduler.ts
-var scheduler_exports = {};
-__export(scheduler_exports, {
-  getAutoSyncConfig: () => getAutoSyncConfig,
-  setAutoSyncConfig: () => setAutoSyncConfig,
-  syncAllUsers: () => syncAllUsers,
-  syncUserSubscription: () => syncUserSubscription
-});
-async function syncUserSubscription(storage, user, baseUrl) {
-  if (!user.subscriptionConfig) {
-    return { success: false, error: "\u7528\u6237\u672A\u7ED1\u5B9A\u8BA2\u9605" };
-  }
-  const { collectionName, token } = user.subscriptionConfig;
-  const encodedName = encodeURIComponent(collectionName);
-  const url = `${baseUrl}/share/col/${encodedName}?token=${token}`;
-  console.log(`[Scheduler] \u540C\u6B65\u7528\u6237 ${user.username}\uFF0CURL: ${url}`);
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15e3);
-    let response;
-    try {
-      response = await fetch(url, {
-        method: "GET",
-        headers: { "User-Agent": "SubSync/1.0" },
-        signal: controller.signal
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-    if (!response.ok) {
-      return { success: false, error: `HTTP ${response.status}` };
-    }
-    let text = await response.text();
-    const isBase64 = /^[A-Za-z0-9+/=\s]+$/.test(text.trim()) && !text.includes("://") && text.trim().length > 100;
-    if (isBase64) {
-      try {
-        text = atob(text.trim().replace(/\s/g, ""));
-      } catch {
-      }
-    }
-    const lines = text.split(/\r?\n/).filter((line) => line.trim());
-    const validLines = lines.filter(
-      (line) => line.startsWith("vless://") || line.startsWith("vmess://") || line.startsWith("trojan://") || line.startsWith("ss://") || line.startsWith("ssr://")
-    );
-    let earliestExpire = null;
-    let totalRemainGB = null;
-    for (const line of validLines) {
-      const match2 = line.match(/剩余\s*(\d+)\s*天/);
-      if (match2) {
-        const daysLeft = parseInt(match2[1], 10);
-        const expireDate = /* @__PURE__ */ new Date();
-        expireDate.setDate(expireDate.getDate() + daysLeft);
-        const expireDateStr = expireDate.toISOString().split("T")[0];
-        if (!earliestExpire || expireDateStr < earliestExpire) {
-          earliestExpire = expireDateStr;
-        }
-      }
-    }
-    user.lastSyncResult = {
-      lastSync: (/* @__PURE__ */ new Date()).toISOString(),
-      nodeCount: validLines.length,
-      earliestExpire,
-      totalRemainGB
-    };
-    await storage.set(`${STORAGE_KEYS.USERS_PREFIX}${user.username}`, user);
-    console.log(`[Scheduler] \u7528\u6237 ${user.username} \u540C\u6B65\u5B8C\u6210\uFF0C\u8282\u70B9\u6570: ${validLines.length}`);
-    return { success: true, nodeCount: validLines.length };
-  } catch (error) {
-    const message2 = error instanceof Error ? error.message : String(error);
-    console.error(`[Scheduler] \u7528\u6237 ${user.username} \u540C\u6B65\u5931\u8D25: ${message2}`);
-    return { success: false, error: message2 };
-  }
-}
-async function syncAllUsers(storage, env) {
-  console.log("[Scheduler] \u5F00\u59CB\u540C\u6B65\u6240\u6709\u7528\u6237...");
-  const substoreConfig = await storage.get(STORAGE_KEYS.SUBSTORE_CONFIG);
-  const baseUrl = substoreConfig?.baseUrl || env.SUBSTORE_SHARE_BASE || "";
-  if (!baseUrl) {
-    console.error("[Scheduler] \u672A\u914D\u7F6E Sub-Store \u5730\u5740\uFF0C\u65E0\u6CD5\u540C\u6B65");
-    return { total: 0, success: 0, failed: 0, synced: 0 };
-  }
-  const userKeys = await storage.list(STORAGE_KEYS.USERS_PREFIX);
-  let successCount = 0;
-  let failedCount = 0;
-  let syncedCount = 0;
-  for (const key of userKeys) {
-    const user = await storage.get(key);
-    if (user && user.subscriptionConfig) {
-      syncedCount++;
-      const result = await syncUserSubscription(storage, user, baseUrl);
-      if (result.success) {
-        successCount++;
-      } else {
-        failedCount++;
-      }
-    }
-  }
-  const config = await storage.get(STORAGE_KEYS.AUTO_SYNC_CONFIG);
-  if (config) {
-    config.lastScheduledSync = (/* @__PURE__ */ new Date()).toISOString();
-    await storage.set(STORAGE_KEYS.AUTO_SYNC_CONFIG, config);
-  }
-  console.log(`[Scheduler] \u540C\u6B65\u5B8C\u6210\uFF0C\u6210\u529F: ${successCount}\uFF0C\u5931\u8D25: ${failedCount}`);
-  return {
-    total: userKeys.length,
-    success: successCount,
-    failed: failedCount,
-    synced: syncedCount
-  };
-}
-async function getAutoSyncConfig(storage) {
-  const config = await storage.get(STORAGE_KEYS.AUTO_SYNC_CONFIG);
-  return config || {
-    enabled: false,
-    intervalMinutes: 60
-  };
-}
-async function setAutoSyncConfig(storage, config) {
-  const current = await getAutoSyncConfig(storage);
-  const updated = {
-    ...current,
-    ...config
-  };
-  await storage.set(STORAGE_KEYS.AUTO_SYNC_CONFIG, updated);
-  return updated;
-}
-var init_scheduler = __esm({
-  "src/scheduler.ts"() {
-    "use strict";
-    init_storage();
-  }
-});
-
-// node_modules/qrcode/lib/can-promise.js
-var require_can_promise = __commonJS({
-  "node_modules/qrcode/lib/can-promise.js"(exports, module) {
-    module.exports = function() {
-      return typeof Promise === "function" && Promise.prototype && Promise.prototype.then;
-    };
-  }
-});
-
-// node_modules/qrcode/lib/core/utils.js
-var require_utils = __commonJS({
-  "node_modules/qrcode/lib/core/utils.js"(exports) {
-    var toSJISFunction;
-    var CODEWORDS_COUNT = [
-      0,
-      // Not used
-      26,
-      44,
-      70,
-      100,
-      134,
-      172,
-      196,
-      242,
-      292,
-      346,
-      404,
-      466,
-      532,
-      581,
-      655,
-      733,
-      815,
-      901,
-      991,
-      1085,
-      1156,
-      1258,
-      1364,
-      1474,
-      1588,
-      1706,
-      1828,
-      1921,
-      2051,
-      2185,
-      2323,
-      2465,
-      2611,
-      2761,
-      2876,
-      3034,
-      3196,
-      3362,
-      3532,
-      3706
-    ];
-    exports.getSymbolSize = function getSymbolSize(version) {
-      if (!version) throw new Error('"version" cannot be null or undefined');
-      if (version < 1 || version > 40) throw new Error('"version" should be in range from 1 to 40');
-      return version * 4 + 17;
-    };
-    exports.getSymbolTotalCodewords = function getSymbolTotalCodewords(version) {
-      return CODEWORDS_COUNT[version];
-    };
-    exports.getBCHDigit = function(data) {
-      let digit = 0;
-      while (data !== 0) {
-        digit++;
-        data >>>= 1;
-      }
-      return digit;
-    };
-    exports.setToSJISFunction = function setToSJISFunction(f) {
-      if (typeof f !== "function") {
-        throw new Error('"toSJISFunc" is not a valid function.');
-      }
-      toSJISFunction = f;
-    };
-    exports.isKanjiModeEnabled = function() {
-      return typeof toSJISFunction !== "undefined";
-    };
-    exports.toSJIS = function toSJIS(kanji) {
-      return toSJISFunction(kanji);
-    };
-  }
-});
-
-// node_modules/qrcode/lib/core/error-correction-level.js
-var require_error_correction_level = __commonJS({
-  "node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
-    exports.L = { bit: 1 };
-    exports.M = { bit: 0 };
-    exports.Q = { bit: 3 };
-    exports.H = { bit: 2 };
-    function fromString(string) {
-      if (typeof string !== "string") {
-        throw new Error("Param is not a string");
-      }
-      const lcStr = string.toLowerCase();
-      switch (lcStr) {
-        case "l":
-        case "low":
-          return exports.L;
-        case "m":
-        case "medium":
-          return exports.M;
-        case "q":
-        case "quartile":
-          return exports.Q;
-        case "h":
-        case "high":
-          return exports.H;
-        default:
-          throw new Error("Unknown EC Level: " + string);
-      }
-    }
-    exports.isValid = function isValid(level) {
-      return level && typeof level.bit !== "undefined" && level.bit >= 0 && level.bit < 4;
-    };
-    exports.from = function from(value, defaultValue) {
-      if (exports.isValid(value)) {
-        return value;
-      }
-      try {
-        return fromString(value);
-      } catch (e) {
-        return defaultValue;
-      }
-    };
-  }
-});
-
-// node_modules/qrcode/lib/core/bit-buffer.js
-var require_bit_buffer = __commonJS({
-  "node_modules/qrcode/lib/core/bit-buffer.js"(exports, module) {
-    function BitBuffer() {
-      this.buffer = [];
-      this.length = 0;
-    }
-    BitBuffer.prototype = {
-      get: function(index) {
-        const bufIndex = Math.floor(index / 8);
-        return (this.buffer[bufIndex] >>> 7 - index % 8 & 1) === 1;
-      },
-      put: function(num, length) {
-        for (let i = 0; i < length; i++) {
-          this.putBit((num >>> length - i - 1 & 1) === 1);
-        }
-      },
-      getLengthInBits: function() {
-        return this.length;
-      },
-      putBit: function(bit) {
-        const bufIndex = Math.floor(this.length / 8);
-        if (this.buffer.length <= bufIndex) {
-          this.buffer.push(0);
-        }
-        if (bit) {
-          this.buffer[bufIndex] |= 128 >>> this.length % 8;
-        }
-        this.length++;
-      }
-    };
-    module.exports = BitBuffer;
-  }
-});
-
-// node_modules/qrcode/lib/core/bit-matrix.js
-var require_bit_matrix = __commonJS({
-  "node_modules/qrcode/lib/core/bit-matrix.js"(exports, module) {
-    function BitMatrix(size) {
-      if (!size || size < 1) {
-        throw new Error("BitMatrix size must be defined and greater than 0");
-      }
-      this.size = size;
-      this.data = new Uint8Array(size * size);
-      this.reservedBit = new Uint8Array(size * size);
-    }
-    BitMatrix.prototype.set = function(row, col, value, reserved) {
-      const index = row * this.size + col;
-      this.data[index] = value;
-      if (reserved) this.reservedBit[index] = true;
-    };
-    BitMatrix.prototype.get = function(row, col) {
-      return this.data[row * this.size + col];
-    };
-    BitMatrix.prototype.xor = function(row, col, value) {
-      this.data[row * this.size + col] ^= value;
-    };
-    BitMatrix.prototype.isReserved = function(row, col) {
-      return this.reservedBit[row * this.size + col];
-    };
-    module.exports = BitMatrix;
-  }
-});
-
-// node_modules/qrcode/lib/core/alignment-pattern.js
-var require_alignment_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
-    var getSymbolSize = require_utils().getSymbolSize;
-    exports.getRowColCoords = function getRowColCoords(version) {
-      if (version === 1) return [];
-      const posCount = Math.floor(version / 7) + 2;
-      const size = getSymbolSize(version);
-      const intervals = size === 145 ? 26 : Math.ceil((size - 13) / (2 * posCount - 2)) * 2;
-      const positions = [size - 7];
-      for (let i = 1; i < posCount - 1; i++) {
-        positions[i] = positions[i - 1] - intervals;
-      }
-      positions.push(6);
-      return positions.reverse();
-    };
-    exports.getPositions = function getPositions(version) {
-      const coords = [];
-      const pos = exports.getRowColCoords(version);
-      const posLength = pos.length;
-      for (let i = 0; i < posLength; i++) {
-        for (let j = 0; j < posLength; j++) {
-          if (i === 0 && j === 0 || // top-left
-          i === 0 && j === posLength - 1 || // bottom-left
-          i === posLength - 1 && j === 0) {
-            continue;
-          }
-          coords.push([pos[i], pos[j]]);
-        }
-      }
-      return coords;
-    };
-  }
-});
-
-// node_modules/qrcode/lib/core/finder-pattern.js
-var require_finder_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
-    var getSymbolSize = require_utils().getSymbolSize;
-    var FINDER_PATTERN_SIZE = 7;
-    exports.getPositions = function getPositions(version) {
-      const size = getSymbolSize(version);
-      return [
-        // top-left
-        [0, 0],
-        // top-right
-        [size - FINDER_PATTERN_SIZE, 0],
-        // bottom-left
-        [0, size - FINDER_PATTERN_SIZE]
-      ];
-    };
-  }
-});
-
-// node_modules/qrcode/lib/core/mask-pattern.js
-var require_mask_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
-    exports.Patterns = {
-      PATTERN000: 0,
-      PATTERN001: 1,
-      PATTERN010: 2,
-      PATTERN011: 3,
-      PATTERN100: 4,
-      PATTERN101: 5,
-      PATTERN110: 6,
-      PATTERN111: 7
-    };
-    var PenaltyScores = {
-      N1: 3,
-      N2: 3,
-      N3: 40,
-      N4: 10
-    };
-    exports.isValid = function isValid(mask) {
-      return mask != null && mask !== "" && !isNaN(mask) && mask >= 0 && mask <= 7;
-    };
-    exports.from = function from(value) {
-      return exports.isValid(value) ? parseInt(value, 10) : void 0;
-    };
-    exports.getPenaltyN1 = function getPenaltyN1(data) {
-      const size = data.size;
-      let points = 0;
-      let sameCountCol = 0;
-      let sameCountRow = 0;
-      let lastCol = null;
-      let lastRow = null;
-      for (let row = 0; row < size; row++) {
-        sameCountCol = sameCountRow = 0;
-        lastCol = lastRow = null;
-        for (let col = 0; col < size; col++) {
-          let module2 = data.get(row, col);
-          if (module2 === lastCol) {
-            sameCountCol++;
-          } else {
-            if (sameCountCol >= 5) points += PenaltyScores.N1 + (sameCountCol - 5);
-            lastCol = module2;
-            sameCountCol = 1;
-          }
-          module2 = data.get(col, row);
-          if (module2 === lastRow) {
-            sameCountRow++;
-          } else {
-            if (sameCountRow >= 5) points += PenaltyScores.N1 + (sameCountRow - 5);
-            lastRow = module2;
-            sameCountRow = 1;
-          }
-        }
-        if (sameCountCol >= 5) points += PenaltyScores.N1 + (sameCountCol - 5);
-        if (sameCountRow >= 5) points += PenaltyScores.N1 + (sameCountRow - 5);
-      }
-      return points;
-    };
-    exports.getPenaltyN2 = function getPenaltyN2(data) {
-      const size = data.size;
-      let points = 0;
-      for (let row = 0; row < size - 1; row++) {
-        for (let col = 0; col < size - 1; col++) {
-          const last = data.get(row, col) + data.get(row, col + 1) + data.get(row + 1, col) + data.get(row + 1, col + 1);
-          if (last === 4 || last === 0) points++;
-        }
-      }
-      return points * PenaltyScores.N2;
-    };
-    exports.getPenaltyN3 = function getPenaltyN3(data) {
-      const size = data.size;
-      let points = 0;
-      let bitsCol = 0;
-      let bitsRow = 0;
-      for (let row = 0; row < size; row++) {
-        bitsCol = bitsRow = 0;
-        for (let col = 0; col < size; col++) {
-          bitsCol = bitsCol << 1 & 2047 | data.get(row, col);
-          if (col >= 10 && (bitsCol === 1488 || bitsCol === 93)) points++;
-          bitsRow = bitsRow << 1 & 2047 | data.get(col, row);
-          if (col >= 10 && (bitsRow === 1488 || bitsRow === 93)) points++;
-        }
-      }
-      return points * PenaltyScores.N3;
-    };
-    exports.getPenaltyN4 = function getPenaltyN4(data) {
-      let darkCount = 0;
-      const modulesCount = data.data.length;
-      for (let i = 0; i < modulesCount; i++) darkCount += data.data[i];
-      const k = Math.abs(Math.ceil(darkCount * 100 / modulesCount / 5) - 10);
-      return k * PenaltyScores.N4;
-    };
-    function getMaskAt(maskPattern, i, j) {
-      switch (maskPattern) {
-        case exports.Patterns.PATTERN000:
-          return (i + j) % 2 === 0;
-        case exports.Patterns.PATTERN001:
-          return i % 2 === 0;
-        case exports.Patterns.PATTERN010:
-          return j % 3 === 0;
-        case exports.Patterns.PATTERN011:
-          return (i + j) % 3 === 0;
-        case exports.Patterns.PATTERN100:
-          return (Math.floor(i / 2) + Math.floor(j / 3)) % 2 === 0;
-        case exports.Patterns.PATTERN101:
-          return i * j % 2 + i * j % 3 === 0;
-        case exports.Patterns.PATTERN110:
-          return (i * j % 2 + i * j % 3) % 2 === 0;
-        case exports.Patterns.PATTERN111:
-          return (i * j % 3 + (i + j) % 2) % 2 === 0;
-        default:
-          throw new Error("bad maskPattern:" + maskPattern);
-      }
-    }
-    exports.applyMask = function applyMask(pattern, data) {
-      const size = data.size;
-      for (let col = 0; col < size; col++) {
-        for (let row = 0; row < size; row++) {
-          if (data.isReserved(row, col)) continue;
-          data.xor(row, col, getMaskAt(pattern, row, col));
-        }
-      }
-    };
-    exports.getBestMask = function getBestMask(data, setupFormatFunc) {
-      const numPatterns = Object.keys(exports.Patterns).length;
-      let bestPattern = 0;
-      let lowerPenalty = Infinity;
-      for (let p2 = 0; p2 < numPatterns; p2++) {
-        setupFormatFunc(p2);
-        exports.applyMask(p2, data);
-        const penalty = exports.getPenaltyN1(data) + exports.getPenaltyN2(data) + exports.getPenaltyN3(data) + exports.getPenaltyN4(data);
-        exports.applyMask(p2, data);
-        if (penalty < lowerPenalty) {
-          lowerPenalty = penalty;
-          bestPattern = p2;
-        }
-      }
-      return bestPattern;
-    };
-  }
-});
-
-// node_modules/qrcode/lib/core/error-correction-code.js
-var require_error_correction_code = __commonJS({
-  "node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
-    var ECLevel = require_error_correction_level();
-    var EC_BLOCKS_TABLE = [
-      // L  M  Q  H
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      2,
-      2,
-      1,
-      2,
-      2,
-      4,
-      1,
-      2,
-      4,
-      4,
-      2,
-      4,
-      4,
-      4,
-      2,
-      4,
-      6,
-      5,
-      2,
-      4,
-      6,
-      6,
-      2,
-      5,
-      8,
-      8,
-      4,
-      5,
-      8,
-      8,
-      4,
-      5,
-      8,
-      11,
-      4,
-      8,
-      10,
-      11,
-      4,
-      9,
-      12,
-      16,
-      4,
-      9,
-      16,
-      16,
-      6,
-      10,
-      12,
-      18,
-      6,
-      10,
-      17,
-      16,
-      6,
-      11,
-      16,
-      19,
-      6,
-      13,
-      18,
-      21,
-      7,
-      14,
-      21,
-      25,
-      8,
-      16,
-      20,
-      25,
-      8,
-      17,
-      23,
-      25,
-      9,
-      17,
-      23,
-      34,
-      9,
-      18,
-      25,
-      30,
-      10,
-      20,
-      27,
-      32,
-      12,
-      21,
-      29,
-      35,
-      12,
-      23,
-      34,
-      37,
-      12,
-      25,
-      34,
-      40,
-      13,
-      26,
-      35,
-      42,
-      14,
-      28,
-      38,
-      45,
-      15,
-      29,
-      40,
-      48,
-      16,
-      31,
-      43,
-      51,
-      17,
-      33,
-      45,
-      54,
-      18,
-      35,
-      48,
-      57,
-      19,
-      37,
-      51,
-      60,
-      19,
-      38,
-      53,
-      63,
-      20,
-      40,
-      56,
-      66,
-      21,
-      43,
-      59,
-      70,
-      22,
-      45,
-      62,
-      74,
-      24,
-      47,
-      65,
-      77,
-      25,
-      49,
-      68,
-      81
-    ];
-    var EC_CODEWORDS_TABLE = [
-      // L  M  Q  H
-      7,
-      10,
-      13,
-      17,
-      10,
-      16,
-      22,
-      28,
-      15,
-      26,
-      36,
-      44,
-      20,
-      36,
-      52,
-      64,
-      26,
-      48,
-      72,
-      88,
-      36,
-      64,
-      96,
-      112,
-      40,
-      72,
-      108,
-      130,
-      48,
-      88,
-      132,
-      156,
-      60,
-      110,
-      160,
-      192,
-      72,
-      130,
-      192,
-      224,
-      80,
-      150,
-      224,
-      264,
-      96,
-      176,
-      260,
-      308,
-      104,
-      198,
-      288,
-      352,
-      120,
-      216,
-      320,
-      384,
-      132,
-      240,
-      360,
-      432,
-      144,
-      280,
-      408,
-      480,
-      168,
-      308,
-      448,
-      532,
-      180,
-      338,
-      504,
-      588,
-      196,
-      364,
-      546,
-      650,
-      224,
-      416,
-      600,
-      700,
-      224,
-      442,
-      644,
-      750,
-      252,
-      476,
-      690,
-      816,
-      270,
-      504,
-      750,
-      900,
-      300,
-      560,
-      810,
-      960,
-      312,
-      588,
-      870,
-      1050,
-      336,
-      644,
-      952,
-      1110,
-      360,
-      700,
-      1020,
-      1200,
-      390,
-      728,
-      1050,
-      1260,
-      420,
-      784,
-      1140,
-      1350,
-      450,
-      812,
-      1200,
-      1440,
-      480,
-      868,
-      1290,
-      1530,
-      510,
-      924,
-      1350,
-      1620,
-      540,
-      980,
-      1440,
-      1710,
-      570,
-      1036,
-      1530,
-      1800,
-      570,
-      1064,
-      1590,
-      1890,
-      600,
-      1120,
-      1680,
-      1980,
-      630,
-      1204,
-      1770,
-      2100,
-      660,
-      1260,
-      1860,
-      2220,
-      720,
-      1316,
-      1950,
-      2310,
-      750,
-      1372,
-      2040,
-      2430
-    ];
-    exports.getBlocksCount = function getBlocksCount(version, errorCorrectionLevel) {
-      switch (errorCorrectionLevel) {
-        case ECLevel.L:
-          return EC_BLOCKS_TABLE[(version - 1) * 4 + 0];
-        case ECLevel.M:
-          return EC_BLOCKS_TABLE[(version - 1) * 4 + 1];
-        case ECLevel.Q:
-          return EC_BLOCKS_TABLE[(version - 1) * 4 + 2];
-        case ECLevel.H:
-          return EC_BLOCKS_TABLE[(version - 1) * 4 + 3];
-        default:
-          return void 0;
-      }
-    };
-    exports.getTotalCodewordsCount = function getTotalCodewordsCount(version, errorCorrectionLevel) {
-      switch (errorCorrectionLevel) {
-        case ECLevel.L:
-          return EC_CODEWORDS_TABLE[(version - 1) * 4 + 0];
-        case ECLevel.M:
-          return EC_CODEWORDS_TABLE[(version - 1) * 4 + 1];
-        case ECLevel.Q:
-          return EC_CODEWORDS_TABLE[(version - 1) * 4 + 2];
-        case ECLevel.H:
-          return EC_CODEWORDS_TABLE[(version - 1) * 4 + 3];
-        default:
-          return void 0;
-      }
-    };
-  }
-});
-
-// node_modules/qrcode/lib/core/galois-field.js
-var require_galois_field = __commonJS({
-  "node_modules/qrcode/lib/core/galois-field.js"(exports) {
-    var EXP_TABLE = new Uint8Array(512);
-    var LOG_TABLE = new Uint8Array(256);
-    (function initTables() {
-      let x2 = 1;
-      for (let i = 0; i < 255; i++) {
-        EXP_TABLE[i] = x2;
-        LOG_TABLE[x2] = i;
-        x2 <<= 1;
-        if (x2 & 256) {
-          x2 ^= 285;
-        }
-      }
-      for (let i = 255; i < 512; i++) {
-        EXP_TABLE[i] = EXP_TABLE[i - 255];
-      }
-    })();
-    exports.log = function log2(n) {
-      if (n < 1) throw new Error("log(" + n + ")");
-      return LOG_TABLE[n];
-    };
-    exports.exp = function exp(n) {
-      return EXP_TABLE[n];
-    };
-    exports.mul = function mul(x2, y) {
-      if (x2 === 0 || y === 0) return 0;
-      return EXP_TABLE[LOG_TABLE[x2] + LOG_TABLE[y]];
-    };
-  }
-});
-
-// node_modules/qrcode/lib/core/polynomial.js
-var require_polynomial = __commonJS({
-  "node_modules/qrcode/lib/core/polynomial.js"(exports) {
-    var GF = require_galois_field();
-    exports.mul = function mul(p1, p2) {
-      const coeff = new Uint8Array(p1.length + p2.length - 1);
-      for (let i = 0; i < p1.length; i++) {
-        for (let j = 0; j < p2.length; j++) {
-          coeff[i + j] ^= GF.mul(p1[i], p2[j]);
-        }
-      }
-      return coeff;
-    };
-    exports.mod = function mod(divident, divisor) {
-      let result = new Uint8Array(divident);
-      while (result.length - divisor.length >= 0) {
-        const coeff = result[0];
-        for (let i = 0; i < divisor.length; i++) {
-          result[i] ^= GF.mul(divisor[i], coeff);
-        }
-        let offset = 0;
-        while (offset < result.length && result[offset] === 0) offset++;
-        result = result.slice(offset);
-      }
-      return result;
-    };
-    exports.generateECPolynomial = function generateECPolynomial(degree) {
-      let poly = new Uint8Array([1]);
-      for (let i = 0; i < degree; i++) {
-        poly = exports.mul(poly, new Uint8Array([1, GF.exp(i)]));
-      }
-      return poly;
-    };
-  }
-});
-
-// node_modules/qrcode/lib/core/reed-solomon-encoder.js
-var require_reed_solomon_encoder = __commonJS({
-  "node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module) {
-    var Polynomial = require_polynomial();
-    function ReedSolomonEncoder(degree) {
-      this.genPoly = void 0;
-      this.degree = degree;
-      if (this.degree) this.initialize(this.degree);
-    }
-    ReedSolomonEncoder.prototype.initialize = function initialize(degree) {
-      this.degree = degree;
-      this.genPoly = Polynomial.generateECPolynomial(this.degree);
-    };
-    ReedSolomonEncoder.prototype.encode = function encode2(data) {
-      if (!this.genPoly) {
-        throw new Error("Encoder not initialized");
-      }
-      const paddedData = new Uint8Array(data.length + this.degree);
-      paddedData.set(data);
-      const remainder = Polynomial.mod(paddedData, this.genPoly);
-      const start = this.degree - remainder.length;
-      if (start > 0) {
-        const buff = new Uint8Array(this.degree);
-        buff.set(remainder, start);
-        return buff;
-      }
-      return remainder;
-    };
-    module.exports = ReedSolomonEncoder;
-  }
-});
-
-// node_modules/qrcode/lib/core/version-check.js
-var require_version_check = __commonJS({
-  "node_modules/qrcode/lib/core/version-check.js"(exports) {
-    exports.isValid = function isValid(version) {
-      return !isNaN(version) && version >= 1 && version <= 40;
-    };
-  }
-});
-
-// node_modules/qrcode/lib/core/regex.js
-var require_regex = __commonJS({
-  "node_modules/qrcode/lib/core/regex.js"(exports) {
-    var numeric = "[0-9]+";
-    var alphanumeric = "[A-Z $%*+\\-./:]+";
-    var kanji = "(?:[u3000-u303F]|[u3040-u309F]|[u30A0-u30FF]|[uFF00-uFFEF]|[u4E00-u9FAF]|[u2605-u2606]|[u2190-u2195]|u203B|[u2010u2015u2018u2019u2025u2026u201Cu201Du2225u2260]|[u0391-u0451]|[u00A7u00A8u00B1u00B4u00D7u00F7])+";
-    kanji = kanji.replace(/u/g, "\\u");
-    var byte = "(?:(?![A-Z0-9 $%*+\\-./:]|" + kanji + ")(?:.|[\r\n]))+";
-    exports.KANJI = new RegExp(kanji, "g");
-    exports.BYTE_KANJI = new RegExp("[^A-Z0-9 $%*+\\-./:]+", "g");
-    exports.BYTE = new RegExp(byte, "g");
-    exports.NUMERIC = new RegExp(numeric, "g");
-    exports.ALPHANUMERIC = new RegExp(alphanumeric, "g");
-    var TEST_KANJI = new RegExp("^" + kanji + "$");
-    var TEST_NUMERIC = new RegExp("^" + numeric + "$");
-    var TEST_ALPHANUMERIC = new RegExp("^[A-Z0-9 $%*+\\-./:]+$");
-    exports.testKanji = function testKanji(str) {
-      return TEST_KANJI.test(str);
-    };
-    exports.testNumeric = function testNumeric(str) {
-      return TEST_NUMERIC.test(str);
-    };
-    exports.testAlphanumeric = function testAlphanumeric(str) {
-      return TEST_ALPHANUMERIC.test(str);
-    };
-  }
-});
-
-// node_modules/qrcode/lib/core/mode.js
-var require_mode = __commonJS({
-  "node_modules/qrcode/lib/core/mode.js"(exports) {
-    var VersionCheck = require_version_check();
-    var Regex = require_regex();
-    exports.NUMERIC = {
-      id: "Numeric",
-      bit: 1 << 0,
-      ccBits: [10, 12, 14]
-    };
-    exports.ALPHANUMERIC = {
-      id: "Alphanumeric",
-      bit: 1 << 1,
-      ccBits: [9, 11, 13]
-    };
-    exports.BYTE = {
-      id: "Byte",
-      bit: 1 << 2,
-      ccBits: [8, 16, 16]
-    };
-    exports.KANJI = {
-      id: "Kanji",
-      bit: 1 << 3,
-      ccBits: [8, 10, 12]
-    };
-    exports.MIXED = {
-      bit: -1
-    };
-    exports.getCharCountIndicator = function getCharCountIndicator(mode, version) {
-      if (!mode.ccBits) throw new Error("Invalid mode: " + mode);
-      if (!VersionCheck.isValid(version)) {
-        throw new Error("Invalid version: " + version);
-      }
-      if (version >= 1 && version < 10) return mode.ccBits[0];
-      else if (version < 27) return mode.ccBits[1];
-      return mode.ccBits[2];
-    };
-    exports.getBestModeForData = function getBestModeForData(dataStr) {
-      if (Regex.testNumeric(dataStr)) return exports.NUMERIC;
-      else if (Regex.testAlphanumeric(dataStr)) return exports.ALPHANUMERIC;
-      else if (Regex.testKanji(dataStr)) return exports.KANJI;
-      else return exports.BYTE;
-    };
-    exports.toString = function toString(mode) {
-      if (mode && mode.id) return mode.id;
-      throw new Error("Invalid mode");
-    };
-    exports.isValid = function isValid(mode) {
-      return mode && mode.bit && mode.ccBits;
-    };
-    function fromString(string) {
-      if (typeof string !== "string") {
-        throw new Error("Param is not a string");
-      }
-      const lcStr = string.toLowerCase();
-      switch (lcStr) {
-        case "numeric":
-          return exports.NUMERIC;
-        case "alphanumeric":
-          return exports.ALPHANUMERIC;
-        case "kanji":
-          return exports.KANJI;
-        case "byte":
-          return exports.BYTE;
-        default:
-          throw new Error("Unknown mode: " + string);
-      }
-    }
-    exports.from = function from(value, defaultValue) {
-      if (exports.isValid(value)) {
-        return value;
-      }
-      try {
-        return fromString(value);
-      } catch (e) {
-        return defaultValue;
-      }
-    };
-  }
-});
-
-// node_modules/qrcode/lib/core/version.js
-var require_version = __commonJS({
-  "node_modules/qrcode/lib/core/version.js"(exports) {
-    var Utils = require_utils();
-    var ECCode = require_error_correction_code();
-    var ECLevel = require_error_correction_level();
-    var Mode = require_mode();
-    var VersionCheck = require_version_check();
-    var G18 = 1 << 12 | 1 << 11 | 1 << 10 | 1 << 9 | 1 << 8 | 1 << 5 | 1 << 2 | 1 << 0;
-    var G18_BCH = Utils.getBCHDigit(G18);
-    function getBestVersionForDataLength(mode, length, errorCorrectionLevel) {
-      for (let currentVersion = 1; currentVersion <= 40; currentVersion++) {
-        if (length <= exports.getCapacity(currentVersion, errorCorrectionLevel, mode)) {
-          return currentVersion;
-        }
-      }
-      return void 0;
-    }
-    function getReservedBitsCount(mode, version) {
-      return Mode.getCharCountIndicator(mode, version) + 4;
-    }
-    function getTotalBitsFromDataArray(segments, version) {
-      let totalBits = 0;
-      segments.forEach(function(data) {
-        const reservedBits = getReservedBitsCount(data.mode, version);
-        totalBits += reservedBits + data.getBitsLength();
-      });
-      return totalBits;
-    }
-    function getBestVersionForMixedData(segments, errorCorrectionLevel) {
-      for (let currentVersion = 1; currentVersion <= 40; currentVersion++) {
-        const length = getTotalBitsFromDataArray(segments, currentVersion);
-        if (length <= exports.getCapacity(currentVersion, errorCorrectionLevel, Mode.MIXED)) {
-          return currentVersion;
-        }
-      }
-      return void 0;
-    }
-    exports.from = function from(value, defaultValue) {
-      if (VersionCheck.isValid(value)) {
-        return parseInt(value, 10);
-      }
-      return defaultValue;
-    };
-    exports.getCapacity = function getCapacity(version, errorCorrectionLevel, mode) {
-      if (!VersionCheck.isValid(version)) {
-        throw new Error("Invalid QR Code version");
-      }
-      if (typeof mode === "undefined") mode = Mode.BYTE;
-      const totalCodewords = Utils.getSymbolTotalCodewords(version);
-      const ecTotalCodewords = ECCode.getTotalCodewordsCount(version, errorCorrectionLevel);
-      const dataTotalCodewordsBits = (totalCodewords - ecTotalCodewords) * 8;
-      if (mode === Mode.MIXED) return dataTotalCodewordsBits;
-      const usableBits = dataTotalCodewordsBits - getReservedBitsCount(mode, version);
-      switch (mode) {
-        case Mode.NUMERIC:
-          return Math.floor(usableBits / 10 * 3);
-        case Mode.ALPHANUMERIC:
-          return Math.floor(usableBits / 11 * 2);
-        case Mode.KANJI:
-          return Math.floor(usableBits / 13);
-        case Mode.BYTE:
-        default:
-          return Math.floor(usableBits / 8);
-      }
-    };
-    exports.getBestVersionForData = function getBestVersionForData(data, errorCorrectionLevel) {
-      let seg;
-      const ecl = ECLevel.from(errorCorrectionLevel, ECLevel.M);
-      if (Array.isArray(data)) {
-        if (data.length > 1) {
-          return getBestVersionForMixedData(data, ecl);
-        }
-        if (data.length === 0) {
-          return 1;
-        }
-        seg = data[0];
-      } else {
-        seg = data;
-      }
-      return getBestVersionForDataLength(seg.mode, seg.getLength(), ecl);
-    };
-    exports.getEncodedBits = function getEncodedBits(version) {
-      if (!VersionCheck.isValid(version) || version < 7) {
-        throw new Error("Invalid QR Code version");
-      }
-      let d2 = version << 12;
-      while (Utils.getBCHDigit(d2) - G18_BCH >= 0) {
-        d2 ^= G18 << Utils.getBCHDigit(d2) - G18_BCH;
-      }
-      return version << 12 | d2;
-    };
-  }
-});
-
-// node_modules/qrcode/lib/core/format-info.js
-var require_format_info = __commonJS({
-  "node_modules/qrcode/lib/core/format-info.js"(exports) {
-    var Utils = require_utils();
-    var G15 = 1 << 10 | 1 << 8 | 1 << 5 | 1 << 4 | 1 << 2 | 1 << 1 | 1 << 0;
-    var G15_MASK = 1 << 14 | 1 << 12 | 1 << 10 | 1 << 4 | 1 << 1;
-    var G15_BCH = Utils.getBCHDigit(G15);
-    exports.getEncodedBits = function getEncodedBits(errorCorrectionLevel, mask) {
-      const data = errorCorrectionLevel.bit << 3 | mask;
-      let d2 = data << 10;
-      while (Utils.getBCHDigit(d2) - G15_BCH >= 0) {
-        d2 ^= G15 << Utils.getBCHDigit(d2) - G15_BCH;
-      }
-      return (data << 10 | d2) ^ G15_MASK;
-    };
-  }
-});
-
-// node_modules/qrcode/lib/core/numeric-data.js
-var require_numeric_data = __commonJS({
-  "node_modules/qrcode/lib/core/numeric-data.js"(exports, module) {
-    var Mode = require_mode();
-    function NumericData(data) {
-      this.mode = Mode.NUMERIC;
-      this.data = data.toString();
-    }
-    NumericData.getBitsLength = function getBitsLength(length) {
-      return 10 * Math.floor(length / 3) + (length % 3 ? length % 3 * 3 + 1 : 0);
-    };
-    NumericData.prototype.getLength = function getLength() {
-      return this.data.length;
-    };
-    NumericData.prototype.getBitsLength = function getBitsLength() {
-      return NumericData.getBitsLength(this.data.length);
-    };
-    NumericData.prototype.write = function write(bitBuffer) {
-      let i, group, value;
-      for (i = 0; i + 3 <= this.data.length; i += 3) {
-        group = this.data.substr(i, 3);
-        value = parseInt(group, 10);
-        bitBuffer.put(value, 10);
-      }
-      const remainingNum = this.data.length - i;
-      if (remainingNum > 0) {
-        group = this.data.substr(i);
-        value = parseInt(group, 10);
-        bitBuffer.put(value, remainingNum * 3 + 1);
-      }
-    };
-    module.exports = NumericData;
-  }
-});
-
-// node_modules/qrcode/lib/core/alphanumeric-data.js
-var require_alphanumeric_data = __commonJS({
-  "node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module) {
-    var Mode = require_mode();
-    var ALPHA_NUM_CHARS = [
-      "0",
-      "1",
-      "2",
-      "3",
-      "4",
-      "5",
-      "6",
-      "7",
-      "8",
-      "9",
-      "A",
-      "B",
-      "C",
-      "D",
-      "E",
-      "F",
-      "G",
-      "H",
-      "I",
-      "J",
-      "K",
-      "L",
-      "M",
-      "N",
-      "O",
-      "P",
-      "Q",
-      "R",
-      "S",
-      "T",
-      "U",
-      "V",
-      "W",
-      "X",
-      "Y",
-      "Z",
-      " ",
-      "$",
-      "%",
-      "*",
-      "+",
-      "-",
-      ".",
-      "/",
-      ":"
-    ];
-    function AlphanumericData(data) {
-      this.mode = Mode.ALPHANUMERIC;
-      this.data = data;
-    }
-    AlphanumericData.getBitsLength = function getBitsLength(length) {
-      return 11 * Math.floor(length / 2) + 6 * (length % 2);
-    };
-    AlphanumericData.prototype.getLength = function getLength() {
-      return this.data.length;
-    };
-    AlphanumericData.prototype.getBitsLength = function getBitsLength() {
-      return AlphanumericData.getBitsLength(this.data.length);
-    };
-    AlphanumericData.prototype.write = function write(bitBuffer) {
-      let i;
-      for (i = 0; i + 2 <= this.data.length; i += 2) {
-        let value = ALPHA_NUM_CHARS.indexOf(this.data[i]) * 45;
-        value += ALPHA_NUM_CHARS.indexOf(this.data[i + 1]);
-        bitBuffer.put(value, 11);
-      }
-      if (this.data.length % 2) {
-        bitBuffer.put(ALPHA_NUM_CHARS.indexOf(this.data[i]), 6);
-      }
-    };
-    module.exports = AlphanumericData;
-  }
-});
-
-// node_modules/qrcode/lib/core/byte-data.js
-var require_byte_data = __commonJS({
-  "node_modules/qrcode/lib/core/byte-data.js"(exports, module) {
-    var Mode = require_mode();
-    function ByteData(data) {
-      this.mode = Mode.BYTE;
-      if (typeof data === "string") {
-        this.data = new TextEncoder().encode(data);
-      } else {
-        this.data = new Uint8Array(data);
-      }
-    }
-    ByteData.getBitsLength = function getBitsLength(length) {
-      return length * 8;
-    };
-    ByteData.prototype.getLength = function getLength() {
-      return this.data.length;
-    };
-    ByteData.prototype.getBitsLength = function getBitsLength() {
-      return ByteData.getBitsLength(this.data.length);
-    };
-    ByteData.prototype.write = function(bitBuffer) {
-      for (let i = 0, l = this.data.length; i < l; i++) {
-        bitBuffer.put(this.data[i], 8);
-      }
-    };
-    module.exports = ByteData;
-  }
-});
-
-// node_modules/qrcode/lib/core/kanji-data.js
-var require_kanji_data = __commonJS({
-  "node_modules/qrcode/lib/core/kanji-data.js"(exports, module) {
-    var Mode = require_mode();
-    var Utils = require_utils();
-    function KanjiData(data) {
-      this.mode = Mode.KANJI;
-      this.data = data;
-    }
-    KanjiData.getBitsLength = function getBitsLength(length) {
-      return length * 13;
-    };
-    KanjiData.prototype.getLength = function getLength() {
-      return this.data.length;
-    };
-    KanjiData.prototype.getBitsLength = function getBitsLength() {
-      return KanjiData.getBitsLength(this.data.length);
-    };
-    KanjiData.prototype.write = function(bitBuffer) {
-      let i;
-      for (i = 0; i < this.data.length; i++) {
-        let value = Utils.toSJIS(this.data[i]);
-        if (value >= 33088 && value <= 40956) {
-          value -= 33088;
-        } else if (value >= 57408 && value <= 60351) {
-          value -= 49472;
-        } else {
-          throw new Error(
-            "Invalid SJIS character: " + this.data[i] + "\nMake sure your charset is UTF-8"
-          );
-        }
-        value = (value >>> 8 & 255) * 192 + (value & 255);
-        bitBuffer.put(value, 13);
-      }
-    };
-    module.exports = KanjiData;
-  }
-});
-
-// node_modules/dijkstrajs/dijkstra.js
-var require_dijkstra = __commonJS({
-  "node_modules/dijkstrajs/dijkstra.js"(exports, module) {
-    "use strict";
-    var dijkstra = {
-      single_source_shortest_paths: function(graph, s, d2) {
-        var predecessors = {};
-        var costs = {};
-        costs[s] = 0;
-        var open = dijkstra.PriorityQueue.make();
-        open.push(s, 0);
-        var closest, u, v2, cost_of_s_to_u, adjacent_nodes, cost_of_e, cost_of_s_to_u_plus_cost_of_e, cost_of_s_to_v, first_visit;
-        while (!open.empty()) {
-          closest = open.pop();
-          u = closest.value;
-          cost_of_s_to_u = closest.cost;
-          adjacent_nodes = graph[u] || {};
-          for (v2 in adjacent_nodes) {
-            if (adjacent_nodes.hasOwnProperty(v2)) {
-              cost_of_e = adjacent_nodes[v2];
-              cost_of_s_to_u_plus_cost_of_e = cost_of_s_to_u + cost_of_e;
-              cost_of_s_to_v = costs[v2];
-              first_visit = typeof costs[v2] === "undefined";
-              if (first_visit || cost_of_s_to_v > cost_of_s_to_u_plus_cost_of_e) {
-                costs[v2] = cost_of_s_to_u_plus_cost_of_e;
-                open.push(v2, cost_of_s_to_u_plus_cost_of_e);
-                predecessors[v2] = u;
-              }
-            }
-          }
-        }
-        if (typeof d2 !== "undefined" && typeof costs[d2] === "undefined") {
-          var msg = ["Could not find a path from ", s, " to ", d2, "."].join("");
-          throw new Error(msg);
-        }
-        return predecessors;
-      },
-      extract_shortest_path_from_predecessor_list: function(predecessors, d2) {
-        var nodes = [];
-        var u = d2;
-        var predecessor;
-        while (u) {
-          nodes.push(u);
-          predecessor = predecessors[u];
-          u = predecessors[u];
-        }
-        nodes.reverse();
-        return nodes;
-      },
-      find_path: function(graph, s, d2) {
-        var predecessors = dijkstra.single_source_shortest_paths(graph, s, d2);
-        return dijkstra.extract_shortest_path_from_predecessor_list(
-          predecessors,
-          d2
-        );
-      },
-      /**
-       * A very naive priority queue implementation.
-       */
-      PriorityQueue: {
-        make: function(opts) {
-          var T2 = dijkstra.PriorityQueue, t = {}, key;
-          opts = opts || {};
-          for (key in T2) {
-            if (T2.hasOwnProperty(key)) {
-              t[key] = T2[key];
-            }
-          }
-          t.queue = [];
-          t.sorter = opts.sorter || T2.default_sorter;
-          return t;
-        },
-        default_sorter: function(a2, b2) {
-          return a2.cost - b2.cost;
-        },
-        /**
-         * Add a new item to the queue and ensure the highest priority element
-         * is at the front of the queue.
-         */
-        push: function(value, cost) {
-          var item = { value, cost };
-          this.queue.push(item);
-          this.queue.sort(this.sorter);
-        },
-        /**
-         * Return the highest priority element in the queue.
-         */
-        pop: function() {
-          return this.queue.shift();
-        },
-        empty: function() {
-          return this.queue.length === 0;
-        }
-      }
-    };
-    if (typeof module !== "undefined") {
-      module.exports = dijkstra;
-    }
-  }
-});
-
-// node_modules/qrcode/lib/core/segments.js
-var require_segments = __commonJS({
-  "node_modules/qrcode/lib/core/segments.js"(exports) {
-    var Mode = require_mode();
-    var NumericData = require_numeric_data();
-    var AlphanumericData = require_alphanumeric_data();
-    var ByteData = require_byte_data();
-    var KanjiData = require_kanji_data();
-    var Regex = require_regex();
-    var Utils = require_utils();
-    var dijkstra = require_dijkstra();
-    function getStringByteLength(str) {
-      return unescape(encodeURIComponent(str)).length;
-    }
-    function getSegments(regex, mode, str) {
-      const segments = [];
-      let result;
-      while ((result = regex.exec(str)) !== null) {
-        segments.push({
-          data: result[0],
-          index: result.index,
-          mode,
-          length: result[0].length
-        });
-      }
-      return segments;
-    }
-    function getSegmentsFromString(dataStr) {
-      const numSegs = getSegments(Regex.NUMERIC, Mode.NUMERIC, dataStr);
-      const alphaNumSegs = getSegments(Regex.ALPHANUMERIC, Mode.ALPHANUMERIC, dataStr);
-      let byteSegs;
-      let kanjiSegs;
-      if (Utils.isKanjiModeEnabled()) {
-        byteSegs = getSegments(Regex.BYTE, Mode.BYTE, dataStr);
-        kanjiSegs = getSegments(Regex.KANJI, Mode.KANJI, dataStr);
-      } else {
-        byteSegs = getSegments(Regex.BYTE_KANJI, Mode.BYTE, dataStr);
-        kanjiSegs = [];
-      }
-      const segs = numSegs.concat(alphaNumSegs, byteSegs, kanjiSegs);
-      return segs.sort(function(s1, s2) {
-        return s1.index - s2.index;
-      }).map(function(obj) {
-        return {
-          data: obj.data,
-          mode: obj.mode,
-          length: obj.length
-        };
-      });
-    }
-    function getSegmentBitsLength(length, mode) {
-      switch (mode) {
-        case Mode.NUMERIC:
-          return NumericData.getBitsLength(length);
-        case Mode.ALPHANUMERIC:
-          return AlphanumericData.getBitsLength(length);
-        case Mode.KANJI:
-          return KanjiData.getBitsLength(length);
-        case Mode.BYTE:
-          return ByteData.getBitsLength(length);
-      }
-    }
-    function mergeSegments(segs) {
-      return segs.reduce(function(acc, curr) {
-        const prevSeg = acc.length - 1 >= 0 ? acc[acc.length - 1] : null;
-        if (prevSeg && prevSeg.mode === curr.mode) {
-          acc[acc.length - 1].data += curr.data;
-          return acc;
-        }
-        acc.push(curr);
-        return acc;
-      }, []);
-    }
-    function buildNodes(segs) {
-      const nodes = [];
-      for (let i = 0; i < segs.length; i++) {
-        const seg = segs[i];
-        switch (seg.mode) {
-          case Mode.NUMERIC:
-            nodes.push([
-              seg,
-              { data: seg.data, mode: Mode.ALPHANUMERIC, length: seg.length },
-              { data: seg.data, mode: Mode.BYTE, length: seg.length }
-            ]);
-            break;
-          case Mode.ALPHANUMERIC:
-            nodes.push([
-              seg,
-              { data: seg.data, mode: Mode.BYTE, length: seg.length }
-            ]);
-            break;
-          case Mode.KANJI:
-            nodes.push([
-              seg,
-              { data: seg.data, mode: Mode.BYTE, length: getStringByteLength(seg.data) }
-            ]);
-            break;
-          case Mode.BYTE:
-            nodes.push([
-              { data: seg.data, mode: Mode.BYTE, length: getStringByteLength(seg.data) }
-            ]);
-        }
-      }
-      return nodes;
-    }
-    function buildGraph(nodes, version) {
-      const table = {};
-      const graph = { start: {} };
-      let prevNodeIds = ["start"];
-      for (let i = 0; i < nodes.length; i++) {
-        const nodeGroup = nodes[i];
-        const currentNodeIds = [];
-        for (let j = 0; j < nodeGroup.length; j++) {
-          const node = nodeGroup[j];
-          const key = "" + i + j;
-          currentNodeIds.push(key);
-          table[key] = { node, lastCount: 0 };
-          graph[key] = {};
-          for (let n = 0; n < prevNodeIds.length; n++) {
-            const prevNodeId = prevNodeIds[n];
-            if (table[prevNodeId] && table[prevNodeId].node.mode === node.mode) {
-              graph[prevNodeId][key] = getSegmentBitsLength(table[prevNodeId].lastCount + node.length, node.mode) - getSegmentBitsLength(table[prevNodeId].lastCount, node.mode);
-              table[prevNodeId].lastCount += node.length;
-            } else {
-              if (table[prevNodeId]) table[prevNodeId].lastCount = node.length;
-              graph[prevNodeId][key] = getSegmentBitsLength(node.length, node.mode) + 4 + Mode.getCharCountIndicator(node.mode, version);
-            }
-          }
-        }
-        prevNodeIds = currentNodeIds;
-      }
-      for (let n = 0; n < prevNodeIds.length; n++) {
-        graph[prevNodeIds[n]].end = 0;
-      }
-      return { map: graph, table };
-    }
-    function buildSingleSegment(data, modesHint) {
-      let mode;
-      const bestMode = Mode.getBestModeForData(data);
-      mode = Mode.from(modesHint, bestMode);
-      if (mode !== Mode.BYTE && mode.bit < bestMode.bit) {
-        throw new Error('"' + data + '" cannot be encoded with mode ' + Mode.toString(mode) + ".\n Suggested mode is: " + Mode.toString(bestMode));
-      }
-      if (mode === Mode.KANJI && !Utils.isKanjiModeEnabled()) {
-        mode = Mode.BYTE;
-      }
-      switch (mode) {
-        case Mode.NUMERIC:
-          return new NumericData(data);
-        case Mode.ALPHANUMERIC:
-          return new AlphanumericData(data);
-        case Mode.KANJI:
-          return new KanjiData(data);
-        case Mode.BYTE:
-          return new ByteData(data);
-      }
-    }
-    exports.fromArray = function fromArray(array) {
-      return array.reduce(function(acc, seg) {
-        if (typeof seg === "string") {
-          acc.push(buildSingleSegment(seg, null));
-        } else if (seg.data) {
-          acc.push(buildSingleSegment(seg.data, seg.mode));
-        }
-        return acc;
-      }, []);
-    };
-    exports.fromString = function fromString(data, version) {
-      const segs = getSegmentsFromString(data, Utils.isKanjiModeEnabled());
-      const nodes = buildNodes(segs);
-      const graph = buildGraph(nodes, version);
-      const path = dijkstra.find_path(graph.map, "start", "end");
-      const optimizedSegs = [];
-      for (let i = 1; i < path.length - 1; i++) {
-        optimizedSegs.push(graph.table[path[i]].node);
-      }
-      return exports.fromArray(mergeSegments(optimizedSegs));
-    };
-    exports.rawSplit = function rawSplit(data) {
-      return exports.fromArray(
-        getSegmentsFromString(data, Utils.isKanjiModeEnabled())
-      );
-    };
-  }
-});
-
-// node_modules/qrcode/lib/core/qrcode.js
-var require_qrcode = __commonJS({
-  "node_modules/qrcode/lib/core/qrcode.js"(exports) {
-    var Utils = require_utils();
-    var ECLevel = require_error_correction_level();
-    var BitBuffer = require_bit_buffer();
-    var BitMatrix = require_bit_matrix();
-    var AlignmentPattern = require_alignment_pattern();
-    var FinderPattern = require_finder_pattern();
-    var MaskPattern = require_mask_pattern();
-    var ECCode = require_error_correction_code();
-    var ReedSolomonEncoder = require_reed_solomon_encoder();
-    var Version = require_version();
-    var FormatInfo = require_format_info();
-    var Mode = require_mode();
-    var Segments = require_segments();
-    function setupFinderPattern(matrix, version) {
-      const size = matrix.size;
-      const pos = FinderPattern.getPositions(version);
-      for (let i = 0; i < pos.length; i++) {
-        const row = pos[i][0];
-        const col = pos[i][1];
-        for (let r = -1; r <= 7; r++) {
-          if (row + r <= -1 || size <= row + r) continue;
-          for (let c = -1; c <= 7; c++) {
-            if (col + c <= -1 || size <= col + c) continue;
-            if (r >= 0 && r <= 6 && (c === 0 || c === 6) || c >= 0 && c <= 6 && (r === 0 || r === 6) || r >= 2 && r <= 4 && c >= 2 && c <= 4) {
-              matrix.set(row + r, col + c, true, true);
-            } else {
-              matrix.set(row + r, col + c, false, true);
-            }
-          }
-        }
-      }
-    }
-    function setupTimingPattern(matrix) {
-      const size = matrix.size;
-      for (let r = 8; r < size - 8; r++) {
-        const value = r % 2 === 0;
-        matrix.set(r, 6, value, true);
-        matrix.set(6, r, value, true);
-      }
-    }
-    function setupAlignmentPattern(matrix, version) {
-      const pos = AlignmentPattern.getPositions(version);
-      for (let i = 0; i < pos.length; i++) {
-        const row = pos[i][0];
-        const col = pos[i][1];
-        for (let r = -2; r <= 2; r++) {
-          for (let c = -2; c <= 2; c++) {
-            if (r === -2 || r === 2 || c === -2 || c === 2 || r === 0 && c === 0) {
-              matrix.set(row + r, col + c, true, true);
-            } else {
-              matrix.set(row + r, col + c, false, true);
-            }
-          }
-        }
-      }
-    }
-    function setupVersionInfo(matrix, version) {
-      const size = matrix.size;
-      const bits = Version.getEncodedBits(version);
-      let row, col, mod;
-      for (let i = 0; i < 18; i++) {
-        row = Math.floor(i / 3);
-        col = i % 3 + size - 8 - 3;
-        mod = (bits >> i & 1) === 1;
-        matrix.set(row, col, mod, true);
-        matrix.set(col, row, mod, true);
-      }
-    }
-    function setupFormatInfo(matrix, errorCorrectionLevel, maskPattern) {
-      const size = matrix.size;
-      const bits = FormatInfo.getEncodedBits(errorCorrectionLevel, maskPattern);
-      let i, mod;
-      for (i = 0; i < 15; i++) {
-        mod = (bits >> i & 1) === 1;
-        if (i < 6) {
-          matrix.set(i, 8, mod, true);
-        } else if (i < 8) {
-          matrix.set(i + 1, 8, mod, true);
-        } else {
-          matrix.set(size - 15 + i, 8, mod, true);
-        }
-        if (i < 8) {
-          matrix.set(8, size - i - 1, mod, true);
-        } else if (i < 9) {
-          matrix.set(8, 15 - i - 1 + 1, mod, true);
-        } else {
-          matrix.set(8, 15 - i - 1, mod, true);
-        }
-      }
-      matrix.set(size - 8, 8, 1, true);
-    }
-    function setupData(matrix, data) {
-      const size = matrix.size;
-      let inc = -1;
-      let row = size - 1;
-      let bitIndex = 7;
-      let byteIndex = 0;
-      for (let col = size - 1; col > 0; col -= 2) {
-        if (col === 6) col--;
-        while (true) {
-          for (let c = 0; c < 2; c++) {
-            if (!matrix.isReserved(row, col - c)) {
-              let dark = false;
-              if (byteIndex < data.length) {
-                dark = (data[byteIndex] >>> bitIndex & 1) === 1;
-              }
-              matrix.set(row, col - c, dark);
-              bitIndex--;
-              if (bitIndex === -1) {
-                byteIndex++;
-                bitIndex = 7;
-              }
-            }
-          }
-          row += inc;
-          if (row < 0 || size <= row) {
-            row -= inc;
-            inc = -inc;
-            break;
-          }
-        }
-      }
-    }
-    function createData(version, errorCorrectionLevel, segments) {
-      const buffer = new BitBuffer();
-      segments.forEach(function(data) {
-        buffer.put(data.mode.bit, 4);
-        buffer.put(data.getLength(), Mode.getCharCountIndicator(data.mode, version));
-        data.write(buffer);
-      });
-      const totalCodewords = Utils.getSymbolTotalCodewords(version);
-      const ecTotalCodewords = ECCode.getTotalCodewordsCount(version, errorCorrectionLevel);
-      const dataTotalCodewordsBits = (totalCodewords - ecTotalCodewords) * 8;
-      if (buffer.getLengthInBits() + 4 <= dataTotalCodewordsBits) {
-        buffer.put(0, 4);
-      }
-      while (buffer.getLengthInBits() % 8 !== 0) {
-        buffer.putBit(0);
-      }
-      const remainingByte = (dataTotalCodewordsBits - buffer.getLengthInBits()) / 8;
-      for (let i = 0; i < remainingByte; i++) {
-        buffer.put(i % 2 ? 17 : 236, 8);
-      }
-      return createCodewords(buffer, version, errorCorrectionLevel);
-    }
-    function createCodewords(bitBuffer, version, errorCorrectionLevel) {
-      const totalCodewords = Utils.getSymbolTotalCodewords(version);
-      const ecTotalCodewords = ECCode.getTotalCodewordsCount(version, errorCorrectionLevel);
-      const dataTotalCodewords = totalCodewords - ecTotalCodewords;
-      const ecTotalBlocks = ECCode.getBlocksCount(version, errorCorrectionLevel);
-      const blocksInGroup2 = totalCodewords % ecTotalBlocks;
-      const blocksInGroup1 = ecTotalBlocks - blocksInGroup2;
-      const totalCodewordsInGroup1 = Math.floor(totalCodewords / ecTotalBlocks);
-      const dataCodewordsInGroup1 = Math.floor(dataTotalCodewords / ecTotalBlocks);
-      const dataCodewordsInGroup2 = dataCodewordsInGroup1 + 1;
-      const ecCount = totalCodewordsInGroup1 - dataCodewordsInGroup1;
-      const rs = new ReedSolomonEncoder(ecCount);
-      let offset = 0;
-      const dcData = new Array(ecTotalBlocks);
-      const ecData = new Array(ecTotalBlocks);
-      let maxDataSize = 0;
-      const buffer = new Uint8Array(bitBuffer.buffer);
-      for (let b2 = 0; b2 < ecTotalBlocks; b2++) {
-        const dataSize = b2 < blocksInGroup1 ? dataCodewordsInGroup1 : dataCodewordsInGroup2;
-        dcData[b2] = buffer.slice(offset, offset + dataSize);
-        ecData[b2] = rs.encode(dcData[b2]);
-        offset += dataSize;
-        maxDataSize = Math.max(maxDataSize, dataSize);
-      }
-      const data = new Uint8Array(totalCodewords);
-      let index = 0;
-      let i, r;
-      for (i = 0; i < maxDataSize; i++) {
-        for (r = 0; r < ecTotalBlocks; r++) {
-          if (i < dcData[r].length) {
-            data[index++] = dcData[r][i];
-          }
-        }
-      }
-      for (i = 0; i < ecCount; i++) {
-        for (r = 0; r < ecTotalBlocks; r++) {
-          data[index++] = ecData[r][i];
-        }
-      }
-      return data;
-    }
-    function createSymbol(data, version, errorCorrectionLevel, maskPattern) {
-      let segments;
-      if (Array.isArray(data)) {
-        segments = Segments.fromArray(data);
-      } else if (typeof data === "string") {
-        let estimatedVersion = version;
-        if (!estimatedVersion) {
-          const rawSegments = Segments.rawSplit(data);
-          estimatedVersion = Version.getBestVersionForData(rawSegments, errorCorrectionLevel);
-        }
-        segments = Segments.fromString(data, estimatedVersion || 40);
-      } else {
-        throw new Error("Invalid data");
-      }
-      const bestVersion = Version.getBestVersionForData(segments, errorCorrectionLevel);
-      if (!bestVersion) {
-        throw new Error("The amount of data is too big to be stored in a QR Code");
-      }
-      if (!version) {
-        version = bestVersion;
-      } else if (version < bestVersion) {
-        throw new Error(
-          "\nThe chosen QR Code version cannot contain this amount of data.\nMinimum version required to store current data is: " + bestVersion + ".\n"
-        );
-      }
-      const dataBits = createData(version, errorCorrectionLevel, segments);
-      const moduleCount = Utils.getSymbolSize(version);
-      const modules = new BitMatrix(moduleCount);
-      setupFinderPattern(modules, version);
-      setupTimingPattern(modules);
-      setupAlignmentPattern(modules, version);
-      setupFormatInfo(modules, errorCorrectionLevel, 0);
-      if (version >= 7) {
-        setupVersionInfo(modules, version);
-      }
-      setupData(modules, dataBits);
-      if (isNaN(maskPattern)) {
-        maskPattern = MaskPattern.getBestMask(
-          modules,
-          setupFormatInfo.bind(null, modules, errorCorrectionLevel)
-        );
-      }
-      MaskPattern.applyMask(maskPattern, modules);
-      setupFormatInfo(modules, errorCorrectionLevel, maskPattern);
-      return {
-        modules,
-        version,
-        errorCorrectionLevel,
-        maskPattern,
-        segments
-      };
-    }
-    exports.create = function create(data, options) {
-      if (typeof data === "undefined" || data === "") {
-        throw new Error("No input text");
-      }
-      let errorCorrectionLevel = ECLevel.M;
-      let version;
-      let mask;
-      if (typeof options !== "undefined") {
-        errorCorrectionLevel = ECLevel.from(options.errorCorrectionLevel, ECLevel.M);
-        version = Version.from(options.version);
-        mask = MaskPattern.from(options.maskPattern);
-        if (options.toSJISFunc) {
-          Utils.setToSJISFunction(options.toSJISFunc);
-        }
-      }
-      return createSymbol(data, version, errorCorrectionLevel, mask);
-    };
-  }
-});
-
-// node_modules/qrcode/lib/renderer/utils.js
-var require_utils2 = __commonJS({
-  "node_modules/qrcode/lib/renderer/utils.js"(exports) {
-    function hex2rgba(hex) {
-      if (typeof hex === "number") {
-        hex = hex.toString();
-      }
-      if (typeof hex !== "string") {
-        throw new Error("Color should be defined as hex string");
-      }
-      let hexCode = hex.slice().replace("#", "").split("");
-      if (hexCode.length < 3 || hexCode.length === 5 || hexCode.length > 8) {
-        throw new Error("Invalid hex color: " + hex);
-      }
-      if (hexCode.length === 3 || hexCode.length === 4) {
-        hexCode = Array.prototype.concat.apply([], hexCode.map(function(c) {
-          return [c, c];
-        }));
-      }
-      if (hexCode.length === 6) hexCode.push("F", "F");
-      const hexValue = parseInt(hexCode.join(""), 16);
-      return {
-        r: hexValue >> 24 & 255,
-        g: hexValue >> 16 & 255,
-        b: hexValue >> 8 & 255,
-        a: hexValue & 255,
-        hex: "#" + hexCode.slice(0, 6).join("")
-      };
-    }
-    exports.getOptions = function getOptions(options) {
-      if (!options) options = {};
-      if (!options.color) options.color = {};
-      const margin = typeof options.margin === "undefined" || options.margin === null || options.margin < 0 ? 4 : options.margin;
-      const width = options.width && options.width >= 21 ? options.width : void 0;
-      const scale = options.scale || 4;
-      return {
-        width,
-        scale: width ? 4 : scale,
-        margin,
-        color: {
-          dark: hex2rgba(options.color.dark || "#000000ff"),
-          light: hex2rgba(options.color.light || "#ffffffff")
-        },
-        type: options.type,
-        rendererOpts: options.rendererOpts || {}
-      };
-    };
-    exports.getScale = function getScale(qrSize, opts) {
-      return opts.width && opts.width >= qrSize + opts.margin * 2 ? opts.width / (qrSize + opts.margin * 2) : opts.scale;
-    };
-    exports.getImageWidth = function getImageWidth(qrSize, opts) {
-      const scale = exports.getScale(qrSize, opts);
-      return Math.floor((qrSize + opts.margin * 2) * scale);
-    };
-    exports.qrToImageData = function qrToImageData(imgData, qr, opts) {
-      const size = qr.modules.size;
-      const data = qr.modules.data;
-      const scale = exports.getScale(size, opts);
-      const symbolSize = Math.floor((size + opts.margin * 2) * scale);
-      const scaledMargin = opts.margin * scale;
-      const palette = [opts.color.light, opts.color.dark];
-      for (let i = 0; i < symbolSize; i++) {
-        for (let j = 0; j < symbolSize; j++) {
-          let posDst = (i * symbolSize + j) * 4;
-          let pxColor = opts.color.light;
-          if (i >= scaledMargin && j >= scaledMargin && i < symbolSize - scaledMargin && j < symbolSize - scaledMargin) {
-            const iSrc = Math.floor((i - scaledMargin) / scale);
-            const jSrc = Math.floor((j - scaledMargin) / scale);
-            pxColor = palette[data[iSrc * size + jSrc] ? 1 : 0];
-          }
-          imgData[posDst++] = pxColor.r;
-          imgData[posDst++] = pxColor.g;
-          imgData[posDst++] = pxColor.b;
-          imgData[posDst] = pxColor.a;
-        }
-      }
-    };
-  }
-});
-
-// node_modules/qrcode/lib/renderer/canvas.js
-var require_canvas = __commonJS({
-  "node_modules/qrcode/lib/renderer/canvas.js"(exports) {
-    var Utils = require_utils2();
-    function clearCanvas(ctx, canvas, size) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (!canvas.style) canvas.style = {};
-      canvas.height = size;
-      canvas.width = size;
-      canvas.style.height = size + "px";
-      canvas.style.width = size + "px";
-    }
-    function getCanvasElement() {
-      try {
-        return document.createElement("canvas");
-      } catch (e) {
-        throw new Error("You need to specify a canvas element");
-      }
-    }
-    exports.render = function render(qrData, canvas, options) {
-      let opts = options;
-      let canvasEl = canvas;
-      if (typeof opts === "undefined" && (!canvas || !canvas.getContext)) {
-        opts = canvas;
-        canvas = void 0;
-      }
-      if (!canvas) {
-        canvasEl = getCanvasElement();
-      }
-      opts = Utils.getOptions(opts);
-      const size = Utils.getImageWidth(qrData.modules.size, opts);
-      const ctx = canvasEl.getContext("2d");
-      const image = ctx.createImageData(size, size);
-      Utils.qrToImageData(image.data, qrData, opts);
-      clearCanvas(ctx, canvasEl, size);
-      ctx.putImageData(image, 0, 0);
-      return canvasEl;
-    };
-    exports.renderToDataURL = function renderToDataURL(qrData, canvas, options) {
-      let opts = options;
-      if (typeof opts === "undefined" && (!canvas || !canvas.getContext)) {
-        opts = canvas;
-        canvas = void 0;
-      }
-      if (!opts) opts = {};
-      const canvasEl = exports.render(qrData, canvas, opts);
-      const type = opts.type || "image/png";
-      const rendererOpts = opts.rendererOpts || {};
-      return canvasEl.toDataURL(type, rendererOpts.quality);
-    };
-  }
-});
-
-// node_modules/qrcode/lib/renderer/svg-tag.js
-var require_svg_tag = __commonJS({
-  "node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
-    var Utils = require_utils2();
-    function getColorAttrib(color, attrib) {
-      const alpha = color.a / 255;
-      const str = attrib + '="' + color.hex + '"';
-      return alpha < 1 ? str + " " + attrib + '-opacity="' + alpha.toFixed(2).slice(1) + '"' : str;
-    }
-    function svgCmd(cmd, x2, y) {
-      let str = cmd + x2;
-      if (typeof y !== "undefined") str += " " + y;
-      return str;
-    }
-    function qrToPath(data, size, margin) {
-      let path = "";
-      let moveBy = 0;
-      let newRow = false;
-      let lineLength = 0;
-      for (let i = 0; i < data.length; i++) {
-        const col = Math.floor(i % size);
-        const row = Math.floor(i / size);
-        if (!col && !newRow) newRow = true;
-        if (data[i]) {
-          lineLength++;
-          if (!(i > 0 && col > 0 && data[i - 1])) {
-            path += newRow ? svgCmd("M", col + margin, 0.5 + row + margin) : svgCmd("m", moveBy, 0);
-            moveBy = 0;
-            newRow = false;
-          }
-          if (!(col + 1 < size && data[i + 1])) {
-            path += svgCmd("h", lineLength);
-            lineLength = 0;
-          }
-        } else {
-          moveBy++;
-        }
-      }
-      return path;
-    }
-    exports.render = function render(qrData, options, cb) {
-      const opts = Utils.getOptions(options);
-      const size = qrData.modules.size;
-      const data = qrData.modules.data;
-      const qrcodesize = size + opts.margin * 2;
-      const bg = !opts.color.light.a ? "" : "<path " + getColorAttrib(opts.color.light, "fill") + ' d="M0 0h' + qrcodesize + "v" + qrcodesize + 'H0z"/>';
-      const path = "<path " + getColorAttrib(opts.color.dark, "stroke") + ' d="' + qrToPath(data, size, opts.margin) + '"/>';
-      const viewBox = 'viewBox="0 0 ' + qrcodesize + " " + qrcodesize + '"';
-      const width = !opts.width ? "" : 'width="' + opts.width + '" height="' + opts.width + '" ';
-      const svgTag = '<svg xmlns="http://www.w3.org/2000/svg" ' + width + viewBox + ' shape-rendering="crispEdges">' + bg + path + "</svg>\n";
-      if (typeof cb === "function") {
-        cb(null, svgTag);
-      }
-      return svgTag;
-    };
-  }
-});
-
-// node_modules/qrcode/lib/browser.js
-var require_browser = __commonJS({
-  "node_modules/qrcode/lib/browser.js"(exports) {
-    var canPromise = require_can_promise();
-    var QRCode2 = require_qrcode();
-    var CanvasRenderer = require_canvas();
-    var SvgRenderer = require_svg_tag();
-    function renderCanvas(renderFunc, canvas, text, opts, cb) {
-      const args = [].slice.call(arguments, 1);
-      const argsNum = args.length;
-      const isLastArgCb = typeof args[argsNum - 1] === "function";
-      if (!isLastArgCb && !canPromise()) {
-        throw new Error("Callback required as last argument");
-      }
-      if (isLastArgCb) {
-        if (argsNum < 2) {
-          throw new Error("Too few arguments provided");
-        }
-        if (argsNum === 2) {
-          cb = text;
-          text = canvas;
-          canvas = opts = void 0;
-        } else if (argsNum === 3) {
-          if (canvas.getContext && typeof cb === "undefined") {
-            cb = opts;
-            opts = void 0;
-          } else {
-            cb = opts;
-            opts = text;
-            text = canvas;
-            canvas = void 0;
-          }
-        }
-      } else {
-        if (argsNum < 1) {
-          throw new Error("Too few arguments provided");
-        }
-        if (argsNum === 1) {
-          text = canvas;
-          canvas = opts = void 0;
-        } else if (argsNum === 2 && !canvas.getContext) {
-          opts = text;
-          text = canvas;
-          canvas = void 0;
-        }
-        return new Promise(function(resolve, reject) {
-          try {
-            const data = QRCode2.create(text, opts);
-            resolve(renderFunc(data, canvas, opts));
-          } catch (e) {
-            reject(e);
-          }
-        });
-      }
-      try {
-        const data = QRCode2.create(text, opts);
-        cb(null, renderFunc(data, canvas, opts));
-      } catch (e) {
-        cb(e);
-      }
-    }
-    exports.create = QRCode2.create;
-    exports.toCanvas = renderCanvas.bind(null, CanvasRenderer.render);
-    exports.toDataURL = renderCanvas.bind(null, CanvasRenderer.renderToDataURL);
-    exports.toString = renderCanvas.bind(null, function(data, _, opts) {
-      return SvgRenderer.render(data, opts);
-    });
-  }
-});
 
 // node_modules/hono/dist/compose.js
 var compose = (middleware, onError, onNotFound) => {
@@ -5351,9 +1456,9 @@ var Hono = class _Hono {
    * ```
    * @see https://hono.dev/docs/api/hono#request
    */
-  request = (input, requestInit, Env, executionCtx) => {
+  request = (input, requestInit, Env2, executionCtx) => {
     if (input instanceof Request) {
-      return this.fetch(requestInit ? new Request(input, requestInit) : input, Env, executionCtx);
+      return this.fetch(requestInit ? new Request(input, requestInit) : input, Env2, executionCtx);
     }
     input = input.toString();
     return this.fetch(
@@ -5361,7 +1466,7 @@ var Hono = class _Hono {
         /^https?:\/\//.test(input) ? input : `http://localhost${mergePath("/", input)}`,
         requestInit
       ),
-      Env,
+      Env2,
       executionCtx
     );
   };
@@ -6090,10 +2195,10 @@ var cors = (options) => {
 
 // node_modules/hono/dist/utils/color.js
 function getColorEnabled() {
-  const { process, Deno } = globalThis;
-  const isNoColor = typeof Deno?.noColor === "boolean" ? Deno.noColor : process !== void 0 ? (
+  const { process: process2, Deno } = globalThis;
+  const isNoColor = typeof Deno?.noColor === "boolean" ? Deno.noColor : process2 !== void 0 ? (
     // eslint-disable-next-line no-unsafe-optional-chaining
-    "NO_COLOR" in process?.env
+    "NO_COLOR" in process2?.env
   ) : false;
   return !isNoColor;
 }
@@ -6151,9 +2256,66 @@ var logger = (fn = console.log) => {
   };
 };
 
-// src/index.ts
-init_memory();
-init_kv();
+// src/storage/memory.ts
+var MemoryStorage = class {
+  store = /* @__PURE__ */ new Map();
+  async get(key) {
+    const entry = this.store.get(key);
+    if (!entry) return null;
+    if (entry.expireAt && Date.now() > entry.expireAt) {
+      this.store.delete(key);
+      return null;
+    }
+    return entry.value;
+  }
+  async set(key, value, options) {
+    const entry = { value };
+    if (options?.ttl) {
+      entry.expireAt = Date.now() + options.ttl * 1e3;
+    }
+    this.store.set(key, entry);
+  }
+  async delete(key) {
+    this.store.delete(key);
+  }
+  async list(prefix) {
+    const keys = [];
+    for (const key of this.store.keys()) {
+      if (key.startsWith(prefix)) {
+        keys.push(key);
+      }
+    }
+    return keys;
+  }
+  // 用于测试：清空所有数据
+  clear() {
+    this.store.clear();
+  }
+};
+var memoryStorage = new MemoryStorage();
+
+// src/storage/kv.ts
+var KVStorage = class {
+  constructor(kv) {
+    this.kv = kv;
+  }
+  async get(key) {
+    const value = await this.kv.get(key, { type: "json" });
+    return value;
+  }
+  async set(key, value, options) {
+    await this.kv.put(key, JSON.stringify(value), {
+      expirationTtl: options?.ttl
+    });
+  }
+  async delete(key) {
+    await this.kv.delete(key);
+  }
+  async list(prefix) {
+    const result = await this.kv.list({ prefix });
+    return result.keys.map((k) => k.name);
+  }
+};
 
 // node_modules/@neondatabase/serverless/index.mjs
 var So = Object.create;
@@ -11446,12 +7608,1306 @@ var NeonStorage = class {
   }
 };
 
-// src/routes/api.ts
-init_storage();
-init_auth();
+// src/storage.ts
+var STORAGE_KEYS = {
+  SYNC_RESULT: "sync:result",
+  SYNC_LOGS: "sync:logs",
+  USERS_PREFIX: "user:",
+  USERS_LIST: "users:list",
+  AUTO_SYNC_CONFIG: "config:auto_sync",
+  // 自动同步配置
+  SUBSTORE_CONFIG: "config:substore",
+  // Sub-Store 配置
+  MEMBERSHIP_CONFIG: "config:membership",
+  // 会员等级配置
+  NOTIFICATION_CONFIG: "config:notification"
+  // 网站通知配置
+};
 
-// src/sync.ts
-init_storage();
+// node_modules/jose/dist/browser/runtime/webcrypto.js
+var webcrypto_default = crypto;
+var isCryptoKey = (key) => key instanceof CryptoKey;
+
+// node_modules/jose/dist/browser/lib/buffer_utils.js
+var encoder = new TextEncoder();
+var decoder = new TextDecoder();
+var MAX_INT32 = 2 ** 32;
+function concat(...buffers) {
+  const size = buffers.reduce((acc, { length }) => acc + length, 0);
+  const buf = new Uint8Array(size);
+  let i = 0;
+  for (const buffer of buffers) {
+    buf.set(buffer, i);
+    i += buffer.length;
+  }
+  return buf;
+}
+
+// node_modules/jose/dist/browser/runtime/base64url.js
+var encodeBase64 = (input) => {
+  let unencoded = input;
+  if (typeof unencoded === "string") {
+    unencoded = encoder.encode(unencoded);
+  }
+  const CHUNK_SIZE = 32768;
+  const arr = [];
+  for (let i = 0; i < unencoded.length; i += CHUNK_SIZE) {
+    arr.push(String.fromCharCode.apply(null, unencoded.subarray(i, i + CHUNK_SIZE)));
+  }
+  return btoa(arr.join(""));
+};
+var encode = (input) => {
+  return encodeBase64(input).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+};
+var decodeBase64 = (encoded) => {
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+};
+var decode = (input) => {
+  let encoded = input;
+  if (encoded instanceof Uint8Array) {
+    encoded = decoder.decode(encoded);
+  }
+  encoded = encoded.replace(/-/g, "+").replace(/_/g, "/").replace(/\s/g, "");
+  try {
+    return decodeBase64(encoded);
+  } catch {
+    throw new TypeError("The input to be decoded is not correctly encoded.");
+  }
+};
+
+// node_modules/jose/dist/browser/util/errors.js
+var JOSEError = class extends Error {
+  constructor(message2, options) {
+    super(message2, options);
+    this.code = "ERR_JOSE_GENERIC";
+    this.name = this.constructor.name;
+    Error.captureStackTrace?.(this, this.constructor);
+  }
+};
+JOSEError.code = "ERR_JOSE_GENERIC";
+var JWTClaimValidationFailed = class extends JOSEError {
+  constructor(message2, payload, claim = "unspecified", reason = "unspecified") {
+    super(message2, { cause: { claim, reason, payload } });
+    this.code = "ERR_JWT_CLAIM_VALIDATION_FAILED";
+    this.claim = claim;
+    this.reason = reason;
+    this.payload = payload;
+  }
+};
+JWTClaimValidationFailed.code = "ERR_JWT_CLAIM_VALIDATION_FAILED";
+var JWTExpired = class extends JOSEError {
+  constructor(message2, payload, claim = "unspecified", reason = "unspecified") {
+    super(message2, { cause: { claim, reason, payload } });
+    this.code = "ERR_JWT_EXPIRED";
+    this.claim = claim;
+    this.reason = reason;
+    this.payload = payload;
+  }
+};
+JWTExpired.code = "ERR_JWT_EXPIRED";
+var JOSEAlgNotAllowed = class extends JOSEError {
+  constructor() {
+    super(...arguments);
+    this.code = "ERR_JOSE_ALG_NOT_ALLOWED";
+  }
+};
+JOSEAlgNotAllowed.code = "ERR_JOSE_ALG_NOT_ALLOWED";
+var JOSENotSupported = class extends JOSEError {
+  constructor() {
+    super(...arguments);
+    this.code = "ERR_JOSE_NOT_SUPPORTED";
+  }
+};
+JOSENotSupported.code = "ERR_JOSE_NOT_SUPPORTED";
+var JWEDecryptionFailed = class extends JOSEError {
+  constructor(message2 = "decryption operation failed", options) {
+    super(message2, options);
+    this.code = "ERR_JWE_DECRYPTION_FAILED";
+  }
+};
+JWEDecryptionFailed.code = "ERR_JWE_DECRYPTION_FAILED";
+var JWEInvalid = class extends JOSEError {
+  constructor() {
+    super(...arguments);
+    this.code = "ERR_JWE_INVALID";
+  }
+};
+JWEInvalid.code = "ERR_JWE_INVALID";
+var JWSInvalid = class extends JOSEError {
+  constructor() {
+    super(...arguments);
+    this.code = "ERR_JWS_INVALID";
+  }
+};
+JWSInvalid.code = "ERR_JWS_INVALID";
+var JWTInvalid = class extends JOSEError {
+  constructor() {
+    super(...arguments);
+    this.code = "ERR_JWT_INVALID";
+  }
+};
+JWTInvalid.code = "ERR_JWT_INVALID";
+var JWKInvalid = class extends JOSEError {
+  constructor() {
+    super(...arguments);
+    this.code = "ERR_JWK_INVALID";
+  }
+};
+JWKInvalid.code = "ERR_JWK_INVALID";
+var JWKSInvalid = class extends JOSEError {
+  constructor() {
+    super(...arguments);
+    this.code = "ERR_JWKS_INVALID";
+  }
+};
+JWKSInvalid.code = "ERR_JWKS_INVALID";
+var JWKSNoMatchingKey = class extends JOSEError {
+  constructor(message2 = "no applicable key found in the JSON Web Key Set", options) {
+    super(message2, options);
+    this.code = "ERR_JWKS_NO_MATCHING_KEY";
+  }
+};
+JWKSNoMatchingKey.code = "ERR_JWKS_NO_MATCHING_KEY";
+var JWKSMultipleMatchingKeys = class extends JOSEError {
+  constructor(message2 = "multiple matching keys found in the JSON Web Key Set", options) {
+    super(message2, options);
+    this.code = "ERR_JWKS_MULTIPLE_MATCHING_KEYS";
+  }
+};
+JWKSMultipleMatchingKeys.code = "ERR_JWKS_MULTIPLE_MATCHING_KEYS";
+var JWKSTimeout = class extends JOSEError {
+  constructor(message2 = "request timed out", options) {
+    super(message2, options);
+    this.code = "ERR_JWKS_TIMEOUT";
+  }
+};
+JWKSTimeout.code = "ERR_JWKS_TIMEOUT";
+var JWSSignatureVerificationFailed = class extends JOSEError {
+  constructor(message2 = "signature verification failed", options) {
+    super(message2, options);
+    this.code = "ERR_JWS_SIGNATURE_VERIFICATION_FAILED";
+  }
+};
+JWSSignatureVerificationFailed.code = "ERR_JWS_SIGNATURE_VERIFICATION_FAILED";
+
+// node_modules/jose/dist/browser/lib/crypto_key.js
+function unusable(name, prop = "algorithm.name") {
+  return new TypeError(`CryptoKey does not support this operation, its ${prop} must be ${name}`);
+}
+function isAlgorithm(algorithm, name) {
+  return algorithm.name === name;
+}
+function getHashLength(hash) {
+  return parseInt(hash.name.slice(4), 10);
+}
+function getNamedCurve(alg) {
+  switch (alg) {
+    case "ES256":
+      return "P-256";
+    case "ES384":
+      return "P-384";
+    case "ES512":
+      return "P-521";
+    default:
+      throw new Error("unreachable");
+  }
+}
+function checkUsage(key, usages) {
+  if (usages.length && !usages.some((expected) => key.usages.includes(expected))) {
+    let msg = "CryptoKey does not support this operation, its usages must include ";
+    if (usages.length > 2) {
+      const last = usages.pop();
+      msg += `one of ${usages.join(", ")}, or ${last}.`;
+    } else if (usages.length === 2) {
+      msg += `one of ${usages[0]} or ${usages[1]}.`;
+    } else {
+      msg += `${usages[0]}.`;
+    }
+    throw new TypeError(msg);
+  }
+}
+function checkSigCryptoKey(key, alg, ...usages) {
+  switch (alg) {
+    case "HS256":
+    case "HS384":
+    case "HS512": {
+      if (!isAlgorithm(key.algorithm, "HMAC"))
+        throw unusable("HMAC");
+      const expected = parseInt(alg.slice(2), 10);
+      const actual = getHashLength(key.algorithm.hash);
+      if (actual !== expected)
+        throw unusable(`SHA-${expected}`, "algorithm.hash");
+      break;
+    }
+    case "RS256":
+    case "RS384":
+    case "RS512": {
+      if (!isAlgorithm(key.algorithm, "RSASSA-PKCS1-v1_5"))
+        throw unusable("RSASSA-PKCS1-v1_5");
+      const expected = parseInt(alg.slice(2), 10);
+      const actual = getHashLength(key.algorithm.hash);
+      if (actual !== expected)
+        throw unusable(`SHA-${expected}`, "algorithm.hash");
+      break;
+    }
+    case "PS256":
+    case "PS384":
+    case "PS512": {
+      if (!isAlgorithm(key.algorithm, "RSA-PSS"))
+        throw unusable("RSA-PSS");
+      const expected = parseInt(alg.slice(2), 10);
+      const actual = getHashLength(key.algorithm.hash);
+      if (actual !== expected)
+        throw unusable(`SHA-${expected}`, "algorithm.hash");
+      break;
+    }
+    case "EdDSA": {
+      if (key.algorithm.name !== "Ed25519" && key.algorithm.name !== "Ed448") {
+        throw unusable("Ed25519 or Ed448");
+      }
+      break;
+    }
+    case "Ed25519": {
+      if (!isAlgorithm(key.algorithm, "Ed25519"))
+        throw unusable("Ed25519");
+      break;
+    }
+    case "ES256":
+    case "ES384":
+    case "ES512": {
+      if (!isAlgorithm(key.algorithm, "ECDSA"))
+        throw unusable("ECDSA");
+      const expected = getNamedCurve(alg);
+      const actual = key.algorithm.namedCurve;
+      if (actual !== expected)
+        throw unusable(expected, "algorithm.namedCurve");
+      break;
+    }
+    default:
+      throw new TypeError("CryptoKey does not support this operation");
+  }
+  checkUsage(key, usages);
+}
+
+// node_modules/jose/dist/browser/lib/invalid_key_input.js
+function message(msg, actual, ...types2) {
+  types2 = types2.filter(Boolean);
+  if (types2.length > 2) {
+    const last = types2.pop();
+    msg += `one of type ${types2.join(", ")}, or ${last}.`;
+  } else if (types2.length === 2) {
+    msg += `one of type ${types2[0]} or ${types2[1]}.`;
+  } else {
+    msg += `of type ${types2[0]}.`;
+  }
+  if (actual == null) {
+    msg += ` Received ${actual}`;
+  } else if (typeof actual === "function" && actual.name) {
+    msg += ` Received function ${actual.name}`;
+  } else if (typeof actual === "object" && actual != null) {
+    if (actual.constructor?.name) {
+      msg += ` Received an instance of ${actual.constructor.name}`;
+    }
+  }
+  return msg;
+}
+var invalid_key_input_default = (actual, ...types2) => {
+  return message("Key must be ", actual, ...types2);
+};
+function withAlg(alg, actual, ...types2) {
+  return message(`Key for the ${alg} algorithm must be `, actual, ...types2);
+}
+
+// node_modules/jose/dist/browser/runtime/is_key_like.js
+var is_key_like_default = (key) => {
+  if (isCryptoKey(key)) {
+    return true;
+  }
+  return key?.[Symbol.toStringTag] === "KeyObject";
+};
+var types = ["CryptoKey"];
+
+// node_modules/jose/dist/browser/lib/is_disjoint.js
+var isDisjoint = (...headers) => {
+  const sources = headers.filter(Boolean);
+  if (sources.length === 0 || sources.length === 1) {
+    return true;
+  }
+  let acc;
+  for (const header of sources) {
+    const parameters = Object.keys(header);
+    if (!acc || acc.size === 0) {
+      acc = new Set(parameters);
+      continue;
+    }
+    for (const parameter of parameters) {
+      if (acc.has(parameter)) {
+        return false;
+      }
+      acc.add(parameter);
+    }
+  }
+  return true;
+};
+var is_disjoint_default = isDisjoint;
+
+// node_modules/jose/dist/browser/lib/is_object.js
+function isObjectLike(value) {
+  return typeof value === "object" && value !== null;
+}
+function isObject(input) {
+  if (!isObjectLike(input) || Object.prototype.toString.call(input) !== "[object Object]") {
+    return false;
+  }
+  if (Object.getPrototypeOf(input) === null) {
+    return true;
+  }
+  let proto = input;
+  while (Object.getPrototypeOf(proto) !== null) {
+    proto = Object.getPrototypeOf(proto);
+  }
+  return Object.getPrototypeOf(input) === proto;
+}
+
+// node_modules/jose/dist/browser/runtime/check_key_length.js
+var check_key_length_default = (alg, key) => {
+  if (alg.startsWith("RS") || alg.startsWith("PS")) {
+    const { modulusLength } = key.algorithm;
+    if (typeof modulusLength !== "number" || modulusLength < 2048) {
+      throw new TypeError(`${alg} requires key modulusLength to be 2048 bits or larger`);
+    }
+  }
+};
+
+// node_modules/jose/dist/browser/lib/is_jwk.js
+function isJWK(key) {
+  return isObject(key) && typeof key.kty === "string";
+}
+function isPrivateJWK(key) {
+  return key.kty !== "oct" && typeof key.d === "string";
+}
+function isPublicJWK(key) {
+  return key.kty !== "oct" && typeof key.d === "undefined";
+}
+function isSecretJWK(key) {
+  return isJWK(key) && key.kty === "oct" && typeof key.k === "string";
+}
+
+// node_modules/jose/dist/browser/runtime/jwk_to_key.js
+function subtleMapping(jwk) {
+  let algorithm;
+  let keyUsages;
+  switch (jwk.kty) {
+    case "RSA": {
+      switch (jwk.alg) {
+        case "PS256":
+        case "PS384":
+        case "PS512":
+          algorithm = { name: "RSA-PSS", hash: `SHA-${jwk.alg.slice(-3)}` };
+          keyUsages = jwk.d ? ["sign"] : ["verify"];
+          break;
+        case "RS256":
+        case "RS384":
+        case "RS512":
+          algorithm = { name: "RSASSA-PKCS1-v1_5", hash: `SHA-${jwk.alg.slice(-3)}` };
+          keyUsages = jwk.d ? ["sign"] : ["verify"];
+          break;
+        case "RSA-OAEP":
+        case "RSA-OAEP-256":
+        case "RSA-OAEP-384":
+        case "RSA-OAEP-512":
+          algorithm = {
+            name: "RSA-OAEP",
+            hash: `SHA-${parseInt(jwk.alg.slice(-3), 10) || 1}`
+          };
+          keyUsages = jwk.d ? ["decrypt", "unwrapKey"] : ["encrypt", "wrapKey"];
+          break;
+        default:
+          throw new JOSENotSupported('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
+      }
+      break;
+    }
+    case "EC": {
+      switch (jwk.alg) {
+        case "ES256":
+          algorithm = { name: "ECDSA", namedCurve: "P-256" };
+          keyUsages = jwk.d ? ["sign"] : ["verify"];
+          break;
+        case "ES384":
+          algorithm = { name: "ECDSA", namedCurve: "P-384" };
+          keyUsages = jwk.d ? ["sign"] : ["verify"];
+          break;
+        case "ES512":
+          algorithm = { name: "ECDSA", namedCurve: "P-521" };
+          keyUsages = jwk.d ? ["sign"] : ["verify"];
+          break;
+        case "ECDH-ES":
+        case "ECDH-ES+A128KW":
+        case "ECDH-ES+A192KW":
+        case "ECDH-ES+A256KW":
+          algorithm = { name: "ECDH", namedCurve: jwk.crv };
+          keyUsages = jwk.d ? ["deriveBits"] : [];
+          break;
+        default:
+          throw new JOSENotSupported('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
+      }
+      break;
+    }
+    case "OKP": {
+      switch (jwk.alg) {
+        case "Ed25519":
+          algorithm = { name: "Ed25519" };
+          keyUsages = jwk.d ? ["sign"] : ["verify"];
+          break;
+        case "EdDSA":
+          algorithm = { name: jwk.crv };
+          keyUsages = jwk.d ? ["sign"] : ["verify"];
+          break;
+        case "ECDH-ES":
+        case "ECDH-ES+A128KW":
+        case "ECDH-ES+A192KW":
+        case "ECDH-ES+A256KW":
+          algorithm = { name: jwk.crv };
+          keyUsages = jwk.d ? ["deriveBits"] : [];
+          break;
+        default:
+          throw new JOSENotSupported('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
+      }
+      break;
+    }
+    default:
+      throw new JOSENotSupported('Invalid or unsupported JWK "kty" (Key Type) Parameter value');
+  }
+  return { algorithm, keyUsages };
+}
+var parse = async (jwk) => {
+  if (!jwk.alg) {
+    throw new TypeError('"alg" argument is required when "jwk.alg" is not present');
+  }
+  const { algorithm, keyUsages } = subtleMapping(jwk);
+  const rest = [
+    algorithm,
+    jwk.ext ?? false,
+    jwk.key_ops ?? keyUsages
+  ];
+  const keyData = { ...jwk };
+  delete keyData.alg;
+  delete keyData.use;
+  return webcrypto_default.subtle.importKey("jwk", keyData, ...rest);
+};
+var jwk_to_key_default = parse;
+
+// node_modules/jose/dist/browser/runtime/normalize_key.js
+var exportKeyValue = (k) => decode(k);
+var privCache;
+var pubCache;
+var isKeyObject = (key) => {
+  return key?.[Symbol.toStringTag] === "KeyObject";
+};
+var importAndCache = async (cache, key, jwk, alg, freeze = false) => {
+  let cached = cache.get(key);
+  if (cached?.[alg]) {
+    return cached[alg];
+  }
+  const cryptoKey = await jwk_to_key_default({ ...jwk, alg });
+  if (freeze)
+    Object.freeze(key);
+  if (!cached) {
+    cache.set(key, { [alg]: cryptoKey });
+  } else {
+    cached[alg] = cryptoKey;
+  }
+  return cryptoKey;
+};
+var normalizePublicKey = (key, alg) => {
+  if (isKeyObject(key)) {
+    let jwk = key.export({ format: "jwk" });
+    delete jwk.d;
+    delete jwk.dp;
+    delete jwk.dq;
+    delete jwk.p;
+    delete jwk.q;
+    delete jwk.qi;
+    if (jwk.k) {
+      return exportKeyValue(jwk.k);
+    }
+    pubCache || (pubCache = /* @__PURE__ */ new WeakMap());
+    return importAndCache(pubCache, key, jwk, alg);
+  }
+  if (isJWK(key)) {
+    if (key.k)
+      return decode(key.k);
+    pubCache || (pubCache = /* @__PURE__ */ new WeakMap());
+    const cryptoKey = importAndCache(pubCache, key, key, alg, true);
+    return cryptoKey;
+  }
+  return key;
+};
+var normalizePrivateKey = (key, alg) => {
+  if (isKeyObject(key)) {
+    let jwk = key.export({ format: "jwk" });
+    if (jwk.k) {
+      return exportKeyValue(jwk.k);
+    }
+    privCache || (privCache = /* @__PURE__ */ new WeakMap());
+    return importAndCache(privCache, key, jwk, alg);
+  }
+  if (isJWK(key)) {
+    if (key.k)
+      return decode(key.k);
+    privCache || (privCache = /* @__PURE__ */ new WeakMap());
+    const cryptoKey = importAndCache(privCache, key, key, alg, true);
+    return cryptoKey;
+  }
+  return key;
+};
+var normalize_key_default = { normalizePublicKey, normalizePrivateKey };
+
+// node_modules/jose/dist/browser/key/import.js
+async function importJWK(jwk, alg) {
+  if (!isObject(jwk)) {
+    throw new TypeError("JWK must be an object");
+  }
+  alg || (alg = jwk.alg);
+  switch (jwk.kty) {
+    case "oct":
+      if (typeof jwk.k !== "string" || !jwk.k) {
+        throw new TypeError('missing "k" (Key Value) Parameter value');
+      }
+      return decode(jwk.k);
+    case "RSA":
+      if ("oth" in jwk && jwk.oth !== void 0) {
+        throw new JOSENotSupported('RSA JWK "oth" (Other Primes Info) Parameter value is not supported');
+      }
+    case "EC":
+    case "OKP":
+      return jwk_to_key_default({ ...jwk, alg });
+    default:
+      throw new JOSENotSupported('Unsupported "kty" (Key Type) Parameter value');
+  }
+}
+
+// node_modules/jose/dist/browser/lib/check_key_type.js
+var tag = (key) => key?.[Symbol.toStringTag];
+var jwkMatchesOp = (alg, key, usage) => {
+  if (key.use !== void 0 && key.use !== "sig") {
+    throw new TypeError("Invalid key for this operation, when present its use must be sig");
+  }
+  if (key.key_ops !== void 0 && key.key_ops.includes?.(usage) !== true) {
+    throw new TypeError(`Invalid key for this operation, when present its key_ops must include ${usage}`);
+  }
+  if (key.alg !== void 0 && key.alg !== alg) {
+    throw new TypeError(`Invalid key for this operation, when present its alg must be ${alg}`);
+  }
+  return true;
+};
+var symmetricTypeCheck = (alg, key, usage, allowJwk) => {
+  if (key instanceof Uint8Array)
+    return;
+  if (allowJwk && isJWK(key)) {
+    if (isSecretJWK(key) && jwkMatchesOp(alg, key, usage))
+      return;
+    throw new TypeError(`JSON Web Key for symmetric algorithms must have JWK "kty" (Key Type) equal to "oct" and the JWK "k" (Key Value) present`);
+  }
+  if (!is_key_like_default(key)) {
+    throw new TypeError(withAlg(alg, key, ...types, "Uint8Array", allowJwk ? "JSON Web Key" : null));
+  }
+  if (key.type !== "secret") {
+    throw new TypeError(`${tag(key)} instances for symmetric algorithms must be of type "secret"`);
+  }
+};
+var asymmetricTypeCheck = (alg, key, usage, allowJwk) => {
+  if (allowJwk && isJWK(key)) {
+    switch (usage) {
+      case "sign":
+        if (isPrivateJWK(key) && jwkMatchesOp(alg, key, usage))
+          return;
+        throw new TypeError(`JSON Web Key for this operation be a private JWK`);
+      case "verify":
+        if (isPublicJWK(key) && jwkMatchesOp(alg, key, usage))
+          return;
+        throw new TypeError(`JSON Web Key for this operation be a public JWK`);
+    }
+  }
+  if (!is_key_like_default(key)) {
+    throw new TypeError(withAlg(alg, key, ...types, allowJwk ? "JSON Web Key" : null));
+  }
+  if (key.type === "secret") {
+    throw new TypeError(`${tag(key)} instances for asymmetric algorithms must not be of type "secret"`);
+  }
+  if (usage === "sign" && key.type === "public") {
+    throw new TypeError(`${tag(key)} instances for asymmetric algorithm signing must be of type "private"`);
+  }
+  if (usage === "decrypt" && key.type === "public") {
+    throw new TypeError(`${tag(key)} instances for asymmetric algorithm decryption must be of type "private"`);
+  }
+  if (key.algorithm && usage === "verify" && key.type === "private") {
+    throw new TypeError(`${tag(key)} instances for asymmetric algorithm verifying must be of type "public"`);
+  }
+  if (key.algorithm && usage === "encrypt" && key.type === "private") {
+    throw new TypeError(`${tag(key)} instances for asymmetric algorithm encryption must be of type "public"`);
+  }
+};
+function checkKeyType(allowJwk, alg, key, usage) {
+  const symmetric = alg.startsWith("HS") || alg === "dir" || alg.startsWith("PBES2") || /^A\d{3}(?:GCM)?KW$/.test(alg);
+  if (symmetric) {
+    symmetricTypeCheck(alg, key, usage, allowJwk);
+  } else {
+    asymmetricTypeCheck(alg, key, usage, allowJwk);
+  }
+}
+var check_key_type_default = checkKeyType.bind(void 0, false);
+var checkKeyTypeWithJwk = checkKeyType.bind(void 0, true);
+
+// node_modules/jose/dist/browser/lib/validate_crit.js
+function validateCrit(Err, recognizedDefault, recognizedOption, protectedHeader, joseHeader) {
+  if (joseHeader.crit !== void 0 && protectedHeader?.crit === void 0) {
+    throw new Err('"crit" (Critical) Header Parameter MUST be integrity protected');
+  }
+  if (!protectedHeader || protectedHeader.crit === void 0) {
+    return /* @__PURE__ */ new Set();
+  }
+  if (!Array.isArray(protectedHeader.crit) || protectedHeader.crit.length === 0 || protectedHeader.crit.some((input) => typeof input !== "string" || input.length === 0)) {
+    throw new Err('"crit" (Critical) Header Parameter MUST be an array of non-empty strings when present');
+  }
+  let recognized;
+  if (recognizedOption !== void 0) {
+    recognized = new Map([...Object.entries(recognizedOption), ...recognizedDefault.entries()]);
+  } else {
+    recognized = recognizedDefault;
+  }
+  for (const parameter of protectedHeader.crit) {
+    if (!recognized.has(parameter)) {
+      throw new JOSENotSupported(`Extension Header Parameter "${parameter}" is not recognized`);
+    }
+    if (joseHeader[parameter] === void 0) {
+      throw new Err(`Extension Header Parameter "${parameter}" is missing`);
+    }
+    if (recognized.get(parameter) && protectedHeader[parameter] === void 0) {
+      throw new Err(`Extension Header Parameter "${parameter}" MUST be integrity protected`);
+    }
+  }
+  return new Set(protectedHeader.crit);
+}
+var validate_crit_default = validateCrit;
+
+// node_modules/jose/dist/browser/lib/validate_algorithms.js
+var validateAlgorithms = (option, algorithms) => {
+  if (algorithms !== void 0 && (!Array.isArray(algorithms) || algorithms.some((s) => typeof s !== "string"))) {
+    throw new TypeError(`"${option}" option must be an array of strings`);
+  }
+  if (!algorithms) {
+    return void 0;
+  }
+  return new Set(algorithms);
+};
+var validate_algorithms_default = validateAlgorithms;
+
+// node_modules/jose/dist/browser/runtime/subtle_dsa.js
+function subtleDsa(alg, algorithm) {
+  const hash = `SHA-${alg.slice(-3)}`;
+  switch (alg) {
+    case "HS256":
+    case "HS384":
+    case "HS512":
+      return { hash, name: "HMAC" };
+    case "PS256":
+    case "PS384":
+    case "PS512":
+      return { hash, name: "RSA-PSS", saltLength: alg.slice(-3) >> 3 };
+    case "RS256":
+    case "RS384":
+    case "RS512":
+      return { hash, name: "RSASSA-PKCS1-v1_5" };
+    case "ES256":
+    case "ES384":
+    case "ES512":
+      return { hash, name: "ECDSA", namedCurve: algorithm.namedCurve };
+    case "Ed25519":
+      return { name: "Ed25519" };
+    case "EdDSA":
+      return { name: algorithm.name };
+    default:
+      throw new JOSENotSupported(`alg ${alg} is not supported either by JOSE or your javascript runtime`);
+  }
+}
+
+// node_modules/jose/dist/browser/runtime/get_sign_verify_key.js
+async function getCryptoKey(alg, key, usage) {
+  if (usage === "sign") {
+    key = await normalize_key_default.normalizePrivateKey(key, alg);
+  }
+  if (usage === "verify") {
+    key = await normalize_key_default.normalizePublicKey(key, alg);
+  }
+  if (isCryptoKey(key)) {
+    checkSigCryptoKey(key, alg, usage);
+    return key;
+  }
+  if (key instanceof Uint8Array) {
+    if (!alg.startsWith("HS")) {
+      throw new TypeError(invalid_key_input_default(key, ...types));
+    }
+    return webcrypto_default.subtle.importKey("raw", key, { hash: `SHA-${alg.slice(-3)}`, name: "HMAC" }, false, [usage]);
+  }
+  throw new TypeError(invalid_key_input_default(key, ...types, "Uint8Array", "JSON Web Key"));
+}
+
+// node_modules/jose/dist/browser/runtime/verify.js
+var verify = async (alg, key, signature, data) => {
+  const cryptoKey = await getCryptoKey(alg, key, "verify");
+  check_key_length_default(alg, cryptoKey);
+  const algorithm = subtleDsa(alg, cryptoKey.algorithm);
+  try {
+    return await webcrypto_default.subtle.verify(algorithm, cryptoKey, signature, data);
+  } catch {
+    return false;
+  }
+};
+var verify_default = verify;
+
+// node_modules/jose/dist/browser/jws/flattened/verify.js
+async function flattenedVerify(jws, key, options) {
+  if (!isObject(jws)) {
+    throw new JWSInvalid("Flattened JWS must be an object");
+  }
+  if (jws.protected === void 0 && jws.header === void 0) {
+    throw new JWSInvalid('Flattened JWS must have either of the "protected" or "header" members');
+  }
+  if (jws.protected !== void 0 && typeof jws.protected !== "string") {
+    throw new JWSInvalid("JWS Protected Header incorrect type");
+  }
+  if (jws.payload === void 0) {
+    throw new JWSInvalid("JWS Payload missing");
+  }
+  if (typeof jws.signature !== "string") {
+    throw new JWSInvalid("JWS Signature missing or incorrect type");
+  }
+  if (jws.header !== void 0 && !isObject(jws.header)) {
+    throw new JWSInvalid("JWS Unprotected Header incorrect type");
+  }
+  let parsedProt = {};
+  if (jws.protected) {
+    try {
+      const protectedHeader = decode(jws.protected);
+      parsedProt = JSON.parse(decoder.decode(protectedHeader));
+    } catch {
+      throw new JWSInvalid("JWS Protected Header is invalid");
+    }
+  }
+  if (!is_disjoint_default(parsedProt, jws.header)) {
+    throw new JWSInvalid("JWS Protected and JWS Unprotected Header Parameter names must be disjoint");
+  }
+  const joseHeader = {
+    ...parsedProt,
+    ...jws.header
+  };
+  const extensions = validate_crit_default(JWSInvalid, /* @__PURE__ */ new Map([["b64", true]]), options?.crit, parsedProt, joseHeader);
+  let b64 = true;
+  if (extensions.has("b64")) {
+    b64 = parsedProt.b64;
+    if (typeof b64 !== "boolean") {
+      throw new JWSInvalid('The "b64" (base64url-encode payload) Header Parameter must be a boolean');
+    }
+  }
+  const { alg } = joseHeader;
+  if (typeof alg !== "string" || !alg) {
+    throw new JWSInvalid('JWS "alg" (Algorithm) Header Parameter missing or invalid');
+  }
+  const algorithms = options && validate_algorithms_default("algorithms", options.algorithms);
+  if (algorithms && !algorithms.has(alg)) {
+    throw new JOSEAlgNotAllowed('"alg" (Algorithm) Header Parameter value not allowed');
+  }
+  if (b64) {
+    if (typeof jws.payload !== "string") {
+      throw new JWSInvalid("JWS Payload must be a string");
+    }
+  } else if (typeof jws.payload !== "string" && !(jws.payload instanceof Uint8Array)) {
+    throw new JWSInvalid("JWS Payload must be a string or an Uint8Array instance");
+  }
+  let resolvedKey = false;
+  if (typeof key === "function") {
+    key = await key(parsedProt, jws);
+    resolvedKey = true;
+    checkKeyTypeWithJwk(alg, key, "verify");
+    if (isJWK(key)) {
+      key = await importJWK(key, alg);
+    }
+  } else {
+    checkKeyTypeWithJwk(alg, key, "verify");
+  }
+  const data = concat(encoder.encode(jws.protected ?? ""), encoder.encode("."), typeof jws.payload === "string" ? encoder.encode(jws.payload) : jws.payload);
+  let signature;
+  try {
+    signature = decode(jws.signature);
+  } catch {
+    throw new JWSInvalid("Failed to base64url decode the signature");
+  }
+  const verified = await verify_default(alg, key, signature, data);
+  if (!verified) {
+    throw new JWSSignatureVerificationFailed();
+  }
+  let payload;
+  if (b64) {
+    try {
+      payload = decode(jws.payload);
+    } catch {
+      throw new JWSInvalid("Failed to base64url decode the payload");
+    }
+  } else if (typeof jws.payload === "string") {
+    payload = encoder.encode(jws.payload);
+  } else {
+    payload = jws.payload;
+  }
+  const result = { payload };
+  if (jws.protected !== void 0) {
+    result.protectedHeader = parsedProt;
+  }
+  if (jws.header !== void 0) {
+    result.unprotectedHeader = jws.header;
+  }
+  if (resolvedKey) {
+    return { ...result, key };
+  }
+  return result;
+}
+
+// node_modules/jose/dist/browser/jws/compact/verify.js
+async function compactVerify(jws, key, options) {
+  if (jws instanceof Uint8Array) {
+    jws = decoder.decode(jws);
+  }
+  if (typeof jws !== "string") {
+    throw new JWSInvalid("Compact JWS must be a string or Uint8Array");
+  }
+  const { 0: protectedHeader, 1: payload, 2: signature, length } = jws.split(".");
+  if (length !== 3) {
+    throw new JWSInvalid("Invalid Compact JWS");
+  }
+  const verified = await flattenedVerify({ payload, protected: protectedHeader, signature }, key, options);
+  const result = { payload: verified.payload, protectedHeader: verified.protectedHeader };
+  if (typeof key === "function") {
+    return { ...result, key: verified.key };
+  }
+  return result;
+}
+
+// node_modules/jose/dist/browser/lib/epoch.js
+var epoch_default = (date) => Math.floor(date.getTime() / 1e3);
+
+// node_modules/jose/dist/browser/lib/secs.js
+var minute = 60;
+var hour = minute * 60;
+var day = hour * 24;
+var week = day * 7;
+var year = day * 365.25;
+var REGEX = /^(\+|\-)? ?(\d+|\d+\.\d+) ?(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)(?: (ago|from now))?$/i;
+var secs_default = (str) => {
+  const matched = REGEX.exec(str);
+  if (!matched || matched[4] && matched[1]) {
+    throw new TypeError("Invalid time period format");
+  }
+  const value = parseFloat(matched[2]);
+  const unit = matched[3].toLowerCase();
+  let numericDate;
+  switch (unit) {
+    case "sec":
+    case "secs":
+    case "second":
+    case "seconds":
+    case "s":
+      numericDate = Math.round(value);
+      break;
+    case "minute":
+    case "minutes":
+    case "min":
+    case "mins":
+    case "m":
+      numericDate = Math.round(value * minute);
+      break;
+    case "hour":
+    case "hours":
+    case "hr":
+    case "hrs":
+    case "h":
+      numericDate = Math.round(value * hour);
+      break;
+    case "day":
+    case "days":
+    case "d":
+      numericDate = Math.round(value * day);
+      break;
+    case "week":
+    case "weeks":
+    case "w":
+      numericDate = Math.round(value * week);
+      break;
+    default:
+      numericDate = Math.round(value * year);
+      break;
+  }
+  if (matched[1] === "-" || matched[4] === "ago") {
+    return -numericDate;
+  }
+  return numericDate;
+};
+
+// node_modules/jose/dist/browser/lib/jwt_claims_set.js
+var normalizeTyp = (value) => value.toLowerCase().replace(/^application\//, "");
+var checkAudiencePresence = (audPayload, audOption) => {
+  if (typeof audPayload === "string") {
+    return audOption.includes(audPayload);
+  }
+  if (Array.isArray(audPayload)) {
+    return audOption.some(Set.prototype.has.bind(new Set(audPayload)));
+  }
+  return false;
+};
+var jwt_claims_set_default = (protectedHeader, encodedPayload, options = {}) => {
+  let payload;
+  try {
+    payload = JSON.parse(decoder.decode(encodedPayload));
+  } catch {
+  }
+  if (!isObject(payload)) {
+    throw new JWTInvalid("JWT Claims Set must be a top-level JSON object");
+  }
+  const { typ } = options;
+  if (typ && (typeof protectedHeader.typ !== "string" || normalizeTyp(protectedHeader.typ) !== normalizeTyp(typ))) {
+    throw new JWTClaimValidationFailed('unexpected "typ" JWT header value', payload, "typ", "check_failed");
+  }
+  const { requiredClaims = [], issuer, subject, audience, maxTokenAge } = options;
+  const presenceCheck = [...requiredClaims];
+  if (maxTokenAge !== void 0)
+    presenceCheck.push("iat");
+  if (audience !== void 0)
+    presenceCheck.push("aud");
+  if (subject !== void 0)
+    presenceCheck.push("sub");
+  if (issuer !== void 0)
+    presenceCheck.push("iss");
+  for (const claim of new Set(presenceCheck.reverse())) {
+    if (!(claim in payload)) {
+      throw new JWTClaimValidationFailed(`missing required "${claim}" claim`, payload, claim, "missing");
+    }
+  }
+  if (issuer && !(Array.isArray(issuer) ? issuer : [issuer]).includes(payload.iss)) {
+    throw new JWTClaimValidationFailed('unexpected "iss" claim value', payload, "iss", "check_failed");
+  }
+  if (subject && payload.sub !== subject) {
+    throw new JWTClaimValidationFailed('unexpected "sub" claim value', payload, "sub", "check_failed");
+  }
+  if (audience && !checkAudiencePresence(payload.aud, typeof audience === "string" ? [audience] : audience)) {
+    throw new JWTClaimValidationFailed('unexpected "aud" claim value', payload, "aud", "check_failed");
+  }
+  let tolerance;
+  switch (typeof options.clockTolerance) {
+    case "string":
+      tolerance = secs_default(options.clockTolerance);
+      break;
+    case "number":
+      tolerance = options.clockTolerance;
+      break;
+    case "undefined":
+      tolerance = 0;
+      break;
+    default:
+      throw new TypeError("Invalid clockTolerance option type");
+  }
+  const { currentDate } = options;
+  const now = epoch_default(currentDate || /* @__PURE__ */ new Date());
+  if ((payload.iat !== void 0 || maxTokenAge) && typeof payload.iat !== "number") {
+    throw new JWTClaimValidationFailed('"iat" claim must be a number', payload, "iat", "invalid");
+  }
+  if (payload.nbf !== void 0) {
+    if (typeof payload.nbf !== "number") {
+      throw new JWTClaimValidationFailed('"nbf" claim must be a number', payload, "nbf", "invalid");
+    }
+    if (payload.nbf > now + tolerance) {
+      throw new JWTClaimValidationFailed('"nbf" claim timestamp check failed', payload, "nbf", "check_failed");
+    }
+  }
+  if (payload.exp !== void 0) {
+    if (typeof payload.exp !== "number") {
+      throw new JWTClaimValidationFailed('"exp" claim must be a number', payload, "exp", "invalid");
+    }
+    if (payload.exp <= now - tolerance) {
+      throw new JWTExpired('"exp" claim timestamp check failed', payload, "exp", "check_failed");
+    }
+  }
+  if (maxTokenAge) {
+    const age = now - payload.iat;
+    const max = typeof maxTokenAge === "number" ? maxTokenAge : secs_default(maxTokenAge);
+    if (age - tolerance > max) {
+      throw new JWTExpired('"iat" claim timestamp check failed (too far in the past)', payload, "iat", "check_failed");
+    }
+    if (age < 0 - tolerance) {
+      throw new JWTClaimValidationFailed('"iat" claim timestamp check failed (it should be in the past)', payload, "iat", "check_failed");
+    }
+  }
+  return payload;
+};
+
+// node_modules/jose/dist/browser/jwt/verify.js
+async function jwtVerify(jwt, key, options) {
+  const verified = await compactVerify(jwt, key, options);
+  if (verified.protectedHeader.crit?.includes("b64") && verified.protectedHeader.b64 === false) {
+    throw new JWTInvalid("JWTs MUST NOT use unencoded payload");
+  }
+  const payload = jwt_claims_set_default(verified.protectedHeader, verified.payload, options);
+  const result = { payload, protectedHeader: verified.protectedHeader };
+  if (typeof key === "function") {
+    return { ...result, key: verified.key };
+  }
+  return result;
+}
+
+// node_modules/jose/dist/browser/runtime/sign.js
+var sign = async (alg, key, data) => {
+  const cryptoKey = await getCryptoKey(alg, key, "sign");
+  check_key_length_default(alg, cryptoKey);
+  const signature = await webcrypto_default.subtle.sign(subtleDsa(alg, cryptoKey.algorithm), cryptoKey, data);
+  return new Uint8Array(signature);
+};
+var sign_default = sign;
+
+// node_modules/jose/dist/browser/jws/flattened/sign.js
+var FlattenedSign = class {
+  constructor(payload) {
+    if (!(payload instanceof Uint8Array)) {
+      throw new TypeError("payload must be an instance of Uint8Array");
+    }
+    this._payload = payload;
+  }
+  setProtectedHeader(protectedHeader) {
+    if (this._protectedHeader) {
+      throw new TypeError("setProtectedHeader can only be called once");
+    }
+    this._protectedHeader = protectedHeader;
+    return this;
+  }
+  setUnprotectedHeader(unprotectedHeader) {
+    if (this._unprotectedHeader) {
+      throw new TypeError("setUnprotectedHeader can only be called once");
+    }
+    this._unprotectedHeader = unprotectedHeader;
+    return this;
+  }
+  async sign(key, options) {
+    if (!this._protectedHeader && !this._unprotectedHeader) {
+      throw new JWSInvalid("either setProtectedHeader or setUnprotectedHeader must be called before #sign()");
+    }
+    if (!is_disjoint_default(this._protectedHeader, this._unprotectedHeader)) {
+      throw new JWSInvalid("JWS Protected and JWS Unprotected Header Parameter names must be disjoint");
+    }
+    const joseHeader = {
+      ...this._protectedHeader,
+      ...this._unprotectedHeader
+    };
+    const extensions = validate_crit_default(JWSInvalid, /* @__PURE__ */ new Map([["b64", true]]), options?.crit, this._protectedHeader, joseHeader);
+    let b64 = true;
+    if (extensions.has("b64")) {
+      b64 = this._protectedHeader.b64;
+      if (typeof b64 !== "boolean") {
+        throw new JWSInvalid('The "b64" (base64url-encode payload) Header Parameter must be a boolean');
+      }
+    }
+    const { alg } = joseHeader;
+    if (typeof alg !== "string" || !alg) {
+      throw new JWSInvalid('JWS "alg" (Algorithm) Header Parameter missing or invalid');
+    }
+    checkKeyTypeWithJwk(alg, key, "sign");
+    let payload = this._payload;
+    if (b64) {
+      payload = encoder.encode(encode(payload));
+    }
+    let protectedHeader;
+    if (this._protectedHeader) {
+      protectedHeader = encoder.encode(encode(JSON.stringify(this._protectedHeader)));
+    } else {
+      protectedHeader = encoder.encode("");
+    }
+    const data = concat(protectedHeader, encoder.encode("."), payload);
+    const signature = await sign_default(alg, key, data);
+    const jws = {
+      signature: encode(signature),
+      payload: ""
+    };
+    if (b64) {
+      jws.payload = decoder.decode(payload);
+    }
+    if (this._unprotectedHeader) {
+      jws.header = this._unprotectedHeader;
+    }
+    if (this._protectedHeader) {
+      jws.protected = decoder.decode(protectedHeader);
+    }
+    return jws;
+  }
+};
+
+// node_modules/jose/dist/browser/jws/compact/sign.js
+var CompactSign = class {
+  constructor(payload) {
+    this._flattened = new FlattenedSign(payload);
+  }
+  setProtectedHeader(protectedHeader) {
+    this._flattened.setProtectedHeader(protectedHeader);
+    return this;
+  }
+  async sign(key, options) {
+    const jws = await this._flattened.sign(key, options);
+    if (jws.payload === void 0) {
+      throw new TypeError("use the flattened module for creating JWS with b64: false");
+    }
+    return `${jws.protected}.${jws.payload}.${jws.signature}`;
+  }
+};
+
+// node_modules/jose/dist/browser/jwt/produce.js
+function validateInput(label, input) {
+  if (!Number.isFinite(input)) {
+    throw new TypeError(`Invalid ${label} input`);
+  }
+  return input;
+}
+var ProduceJWT = class {
+  constructor(payload = {}) {
+    if (!isObject(payload)) {
+      throw new TypeError("JWT Claims Set MUST be an object");
+    }
+    this._payload = payload;
+  }
+  setIssuer(issuer) {
+    this._payload = { ...this._payload, iss: issuer };
+    return this;
+  }
+  setSubject(subject) {
+    this._payload = { ...this._payload, sub: subject };
+    return this;
+  }
+  setAudience(audience) {
+    this._payload = { ...this._payload, aud: audience };
+    return this;
+  }
+  setJti(jwtId) {
+    this._payload = { ...this._payload, jti: jwtId };
+    return this;
+  }
+  setNotBefore(input) {
+    if (typeof input === "number") {
+      this._payload = { ...this._payload, nbf: validateInput("setNotBefore", input) };
+    } else if (input instanceof Date) {
+      this._payload = { ...this._payload, nbf: validateInput("setNotBefore", epoch_default(input)) };
+    } else {
+      this._payload = { ...this._payload, nbf: epoch_default(/* @__PURE__ */ new Date()) + secs_default(input) };
+    }
+    return this;
+  }
+  setExpirationTime(input) {
+    if (typeof input === "number") {
+      this._payload = { ...this._payload, exp: validateInput("setExpirationTime", input) };
+    } else if (input instanceof Date) {
+      this._payload = { ...this._payload, exp: validateInput("setExpirationTime", epoch_default(input)) };
+    } else {
+      this._payload = { ...this._payload, exp: epoch_default(/* @__PURE__ */ new Date()) + secs_default(input) };
+    }
+    return this;
+  }
+  setIssuedAt(input) {
+    if (typeof input === "undefined") {
+      this._payload = { ...this._payload, iat: epoch_default(/* @__PURE__ */ new Date()) };
+    } else if (input instanceof Date) {
+      this._payload = { ...this._payload, iat: validateInput("setIssuedAt", epoch_default(input)) };
+    } else if (typeof input === "string") {
+      this._payload = {
+        ...this._payload,
+        iat: validateInput("setIssuedAt", epoch_default(/* @__PURE__ */ new Date()) + secs_default(input))
+      };
+    } else {
+      this._payload = { ...this._payload, iat: validateInput("setIssuedAt", input) };
+    }
+    return this;
+  }
+};
+
+// node_modules/jose/dist/browser/jwt/sign.js
+var SignJWT = class extends ProduceJWT {
+  setProtectedHeader(protectedHeader) {
+    this._protectedHeader = protectedHeader;
+    return this;
+  }
+  async sign(key, options) {
+    const sig = new CompactSign(encoder.encode(JSON.stringify(this._payload)));
+    sig.setProtectedHeader(this._protectedHeader);
+    if (Array.isArray(this._protectedHeader?.crit) && this._protectedHeader.crit.includes("b64") && this._protectedHeader.b64 === false) {
+      throw new JWTInvalid("JWTs MUST NOT use unencoded payload");
+    }
+    return sig.sign(key, options);
+  }
+};
+
+// src/auth.ts
+async function generateToken(username, isAdmin, secret) {
+  const secretKey = new TextEncoder().encode(secret);
+  const now = Math.floor(Date.now() / 1e3);
+  const token = await new SignJWT({
+    sub: username,
+    isAdmin
+  }).setProtectedHeader({ alg: "HS256" }).setIssuedAt(now).setExpirationTime(now + 7 * 24 * 60 * 60).sign(secretKey);
+  return token;
+}
+async function verifyToken(token, secret) {
+  try {
+    const secretKey = new TextEncoder().encode(secret);
+    const { payload } = await jwtVerify(token, secretKey);
+    return {
+      sub: payload.sub,
+      isAdmin: payload.isAdmin,
+      iat: payload.iat,
+      exp: payload.exp
+    };
+  } catch {
+    return null;
+  }
+}
+async function hashPassword(password) {
+  const encoder2 = new TextEncoder();
+  const data = encoder2.encode(password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b2) => b2.toString(16).padStart(2, "0")).join("");
+}
+async function verifyPassword(password, hash) {
+  const inputHash = await hashPassword(password);
+  return inputHash === hash;
+}
+async function login(username, password, storage, env) {
+  if (username === env.ADMIN_USERNAME) {
+    if (password === env.ADMIN_PASSWORD) {
+      const token2 = await generateToken(username, true, env.AUTH_SECRET);
+      return { success: true, token: token2 };
+    }
+    return { success: false, error: "\u5BC6\u7801\u9519\u8BEF" };
+  }
+  const user = await storage.get(`${STORAGE_KEYS.USERS_PREFIX}${username}`);
+  if (!user) {
+    return { success: false, error: "\u7528\u6237\u4E0D\u5B58\u5728" };
+  }
+  const isValid = await verifyPassword(password, user.passwordHash);
+  if (!isValid) {
+    return { success: false, error: "\u5BC6\u7801\u9519\u8BEF" };
+  }
+  user.lastLogin = (/* @__PURE__ */ new Date()).toISOString();
+  await storage.set(`${STORAGE_KEYS.USERS_PREFIX}${username}`, user);
+  const token = await generateToken(username, user.isAdmin, env.AUTH_SECRET);
+  return { success: true, token };
+}
 
 // src/utils/parse-node.ts
 var expireRegex = /到期[:： ]*(\d{4}-\d{2}-\d{2})/i;
@@ -11492,13 +8948,15 @@ function extractNodeNameFromUrl(url) {
   }
 }
 function isValidProxyUrl(line) {
-  const trimmed = line.trim();
-  return trimmed.startsWith("vless://") || trimmed.startsWith("trojan://") || trimmed.startsWith("vmess://") || trimmed.startsWith("ss://") || trimmed.startsWith("ssr://");
+  const trimmed = line.trim().toLowerCase();
+  return trimmed.startsWith("vless://") || trimmed.startsWith("trojan://") || trimmed.startsWith("vmess://") || trimmed.startsWith("ss://") || trimmed.startsWith("ssr://") || trimmed.startsWith("hysteria2://") || trimmed.startsWith("hysteria://") || trimmed.startsWith("tuic://") || trimmed.startsWith("wireguard://");
 }
 function getProtocolType(line) {
   const trimmed = line.trim().toLowerCase();
   if (trimmed.startsWith("vless://")) return "vless";
   if (trimmed.startsWith("trojan://")) return "trojan";
+  if (trimmed.startsWith("ss://") || trimmed.startsWith("ssr://")) return "shadowsocks";
+  if (trimmed.startsWith("vmess://")) return "vmess";
   return "other";
 }
 
@@ -11542,9 +9000,12 @@ async function syncSubscription(storage, env) {
       }
     }
     const lines = text.split(/\r?\n/).filter((line) => line.trim());
+    if (lines.length > 0) {
+      console.log("[Sync Preview] First 5 lines:", lines.slice(0, 5).map((l) => l.substring(0, 50) + "..."));
+    }
     const validLines = [];
     let invalidCount = 0;
-    const protocols = { vless: 0, trojan: 0, other: 0 };
+    const protocols = { vless: 0, trojan: 0, shadowsocks: 0, vmess: 0, other: 0 };
     const expireDates = [];
     let totalTrafficGB = 0;
     let hasTrafficInfo = false;
@@ -11624,6 +9085,131 @@ async function logSync(storage, log2) {
   await storage.set(STORAGE_KEYS.SYNC_LOGS, logs);
 }
 
+// src/scheduler.ts
+async function syncUserSubscription(storage, user, baseUrl) {
+  if (!user.subscriptionConfig) {
+    return { success: false, error: "\u7528\u6237\u672A\u7ED1\u5B9A\u8BA2\u9605" };
+  }
+  const { collectionName, token } = user.subscriptionConfig;
+  const encodedName = encodeURIComponent(collectionName);
+  const url = `${baseUrl}/share/col/${encodedName}?token=${token}`;
+  console.log(`[Scheduler] \u540C\u6B65\u7528\u6237 ${user.username}\uFF0CURL: ${url}`);
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15e3);
+    let response;
+    try {
+      response = await fetch(url, {
+        method: "GET",
+        headers: { "User-Agent": "SubSync/1.0" },
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    if (!response.ok) {
+      return { success: false, error: `HTTP ${response.status}` };
+    }
+    let text = await response.text();
+    const isBase64 = /^[A-Za-z0-9+/=\s]+$/.test(text.trim()) && !text.includes("://") && text.trim().length > 100;
+    if (isBase64) {
+      try {
+        text = atob(text.trim().replace(/\s/g, ""));
+      } catch {
+      }
+    }
+    const lines = text.split(/\r?\n/).filter((line) => line.trim());
+    const validLines = lines.filter(
+      (line) => line.startsWith("vless://") || line.startsWith("vmess://") || line.startsWith("trojan://") || line.startsWith("ss://") || line.startsWith("ssr://")
+    );
+    let earliestExpire = null;
+    let totalRemainGB = null;
+    const protocols = { vless: 0, trojan: 0, shadowsocks: 0, vmess: 0, other: 0 };
+    for (const line of validLines) {
+      const type = getProtocolType(line);
+      protocols[type]++;
+      const match2 = line.match(/剩余\s*(\d+)\s*天/);
+      if (match2) {
+        const daysLeft = parseInt(match2[1], 10);
+        const expireDate = /* @__PURE__ */ new Date();
+        expireDate.setDate(expireDate.getDate() + daysLeft);
+        const expireDateStr = expireDate.toISOString().split("T")[0];
+        if (!earliestExpire || expireDateStr < earliestExpire) {
+          earliestExpire = expireDateStr;
+        }
+      }
+    }
+    user.lastSyncResult = {
+      lastSync: (/* @__PURE__ */ new Date()).toISOString(),
+      nodeCount: validLines.length,
+      earliestExpire,
+      totalRemainGB,
+      protocols
+      // 保存协议统计
+    };
+    await storage.set(`${STORAGE_KEYS.USERS_PREFIX}${user.username}`, user);
+    console.log(`[Scheduler] \u7528\u6237 ${user.username} \u540C\u6B65\u5B8C\u6210\uFF0C\u8282\u70B9\u6570: ${validLines.length}`);
+    return { success: true, nodeCount: validLines.length };
+  } catch (error) {
+    const message2 = error instanceof Error ? error.message : String(error);
+    console.error(`[Scheduler] \u7528\u6237 ${user.username} \u540C\u6B65\u5931\u8D25: ${message2}`);
+    return { success: false, error: message2 };
+  }
+}
+async function syncAllUsers(storage, env) {
+  console.log("[Scheduler] \u5F00\u59CB\u540C\u6B65\u6240\u6709\u7528\u6237...");
+  const substoreConfig = await storage.get(STORAGE_KEYS.SUBSTORE_CONFIG);
+  const baseUrl = substoreConfig?.baseUrl || env.SUBSTORE_SHARE_BASE || "";
+  if (!baseUrl) {
+    console.error("[Scheduler] \u672A\u914D\u7F6E Sub-Store \u5730\u5740\uFF0C\u65E0\u6CD5\u540C\u6B65");
+    return { total: 0, success: 0, failed: 0, synced: 0 };
+  }
+  const userKeys = await storage.list(STORAGE_KEYS.USERS_PREFIX);
+  let successCount = 0;
+  let failedCount = 0;
+  let syncedCount = 0;
+  for (const key of userKeys) {
+    const user = await storage.get(key);
+    if (user && user.subscriptionConfig) {
+      syncedCount++;
+      const result = await syncUserSubscription(storage, user, baseUrl);
+      if (result.success) {
+        successCount++;
+      } else {
+        failedCount++;
+      }
+    }
+  }
+  const config = await storage.get(STORAGE_KEYS.AUTO_SYNC_CONFIG);
+  if (config) {
+    config.lastScheduledSync = (/* @__PURE__ */ new Date()).toISOString();
+    await storage.set(STORAGE_KEYS.AUTO_SYNC_CONFIG, config);
+  }
+  console.log(`[Scheduler] \u540C\u6B65\u5B8C\u6210\uFF0C\u6210\u529F: ${successCount}\uFF0C\u5931\u8D25: ${failedCount}`);
+  return {
+    total: userKeys.length,
+    success: successCount,
+    failed: failedCount,
+    synced: syncedCount
+  };
+}
+async function getAutoSyncConfig(storage) {
+  const config = await storage.get(STORAGE_KEYS.AUTO_SYNC_CONFIG);
+  return config || {
+    enabled: false,
+    intervalMinutes: 60
+  };
+}
+async function setAutoSyncConfig(storage, config) {
+  const current = await getAutoSyncConfig(storage);
+  const updated = {
+    ...current,
+    ...config
+  };
+  await storage.set(STORAGE_KEYS.AUTO_SYNC_CONFIG, updated);
+  return updated;
+}
+
 // src/routes/api.ts
 function createApiRoutes() {
   const api = new Hono2();
@@ -11653,8 +9239,7 @@ function createApiRoutes() {
     if (!token) {
       return c.json({ authenticated: false });
     }
-    const { verifyToken: verifyToken2 } = await Promise.resolve().then(() => (init_auth(), auth_exports));
-    const payload = await verifyToken2(token, env.AUTH_SECRET);
+    const payload = await verifyToken(token, env.AUTH_SECRET);
     if (!payload) {
       return c.json({ authenticated: false });
     }
@@ -11672,8 +9257,7 @@ function createApiRoutes() {
     if (!token) {
       return c.json({ error: "\u672A\u767B\u5F55" }, 401);
     }
-    const { verifyToken: verifyToken2, hashPassword: hashPassword2, verifyPassword: verifyPassword2 } = await Promise.resolve().then(() => (init_auth(), auth_exports));
-    const payload = await verifyToken2(token, env.AUTH_SECRET);
+    const payload = await verifyToken(token, env.AUTH_SECRET);
     if (!payload) {
       return c.json({ error: "Token \u65E0\u6548" }, 401);
     }
@@ -11696,11 +9280,11 @@ function createApiRoutes() {
     if (!user) {
       return c.json({ error: "\u7528\u6237\u4E0D\u5B58\u5728" }, 404);
     }
-    const isValid = await verifyPassword2(currentPassword, user.passwordHash);
+    const isValid = await verifyPassword(currentPassword, user.passwordHash);
     if (!isValid) {
       return c.json({ error: "\u5F53\u524D\u5BC6\u7801\u9519\u8BEF" }, 400);
     }
-    user.passwordHash = await hashPassword2(newPassword);
+    user.passwordHash = await hashPassword(newPassword);
     await storage.set(`user:${username}`, user);
     return c.json({ success: true });
   });
@@ -11726,8 +9310,7 @@ function createApiRoutes() {
     if (!token) {
       return c.json({ error: "\u672A\u767B\u5F55" }, 401);
     }
-    const { verifyToken: verifyToken2 } = await Promise.resolve().then(() => (init_auth(), auth_exports));
-    const payload = await verifyToken2(token, env.AUTH_SECRET);
+    const payload = await verifyToken(token, env.AUTH_SECRET);
     if (!payload) {
       return c.json({ error: "Token \u65E0\u6548" }, 401);
     }
@@ -11773,9 +9356,37 @@ function createApiRoutes() {
       subscriptionConfig: {
         collectionName: user.subscriptionConfig.collectionName,
         token: user.subscriptionConfig.token
-      },
-      message: "\u8BA2\u9605\u5C1A\u672A\u540C\u6B65\uFF0C\u8BF7\u7B49\u5F85\u81EA\u52A8\u540C\u6B65\u6216\u8054\u7CFB\u7BA1\u7406\u5458\u624B\u52A8\u540C\u6B65"
+      }
     });
+  });
+  api.post("/subscription/sync", async (c) => {
+    const env = c.get("env");
+    const authHeader = c.req.header("Authorization");
+    let token = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : c.req.header("Cookie")?.match(/token=([^;]+)/)?.[1];
+    if (!token) {
+      return c.json({ error: "\u672A\u767B\u5F55" }, 401);
+    }
+    const payload = await verifyToken(token, env.AUTH_SECRET);
+    if (!payload) {
+      return c.json({ error: "Token \u65E0\u6548" }, 401);
+    }
+    const storage = c.get("storage");
+    const username = payload.sub;
+    const user = await storage.get(`${STORAGE_KEYS.USERS_PREFIX}${username}`);
+    if (!user || !user.subscriptionConfig) {
+      return c.json({ error: "\u672A\u7ED1\u5B9A\u8BA2\u9605\u94FE\u63A5" }, 404);
+    }
+    const substoreConfig = await storage.get("config:substore");
+    const baseUrl = substoreConfig?.baseUrl || env.SUBSTORE_SHARE_BASE || "";
+    if (!baseUrl) {
+      return c.json({ error: "\u672A\u914D\u7F6E Sub-Store \u5730\u5740" }, 500);
+    }
+    const result = await syncUserSubscription(storage, user, baseUrl);
+    if (result.success) {
+      return c.json({ success: true, count: result.nodeCount });
+    } else {
+      return c.json({ error: result.error || "\u540C\u6B65\u5931\u8D25" }, 500);
+    }
   });
   api.get("/subscription/download", async (c) => {
     const env = c.get("env");
@@ -11784,8 +9395,7 @@ function createApiRoutes() {
     if (!token) {
       return c.text("\u672A\u767B\u5F55", 401);
     }
-    const { verifyToken: verifyToken2 } = await Promise.resolve().then(() => (init_auth(), auth_exports));
-    const payload = await verifyToken2(token, env.AUTH_SECRET);
+    const payload = await verifyToken(token, env.AUTH_SECRET);
     if (!payload) {
       return c.text("Token \u65E0\u6548", 401);
     }
@@ -11840,9 +9450,6 @@ function createApiRoutes() {
 }
 
 // src/routes/admin.ts
-init_storage();
-init_auth();
-init_scheduler();
 function createAdminRoutes() {
   const admin = new Hono2();
   admin.use("/*", async (c, next) => {
@@ -11869,7 +9476,8 @@ function createAdminRoutes() {
     users.push({
       username: env.ADMIN_USERNAME,
       isAdmin: true,
-      createdAt: "\u7CFB\u7EDF\u7BA1\u7406\u5458"
+      createdAt: "\u7CFB\u7EDF\u7BA1\u7406\u5458",
+      membershipLevel: "VIP\u7528\u6237"
     });
     for (const key of userKeys) {
       const user = await storage.get(key);
@@ -11880,6 +9488,7 @@ function createAdminRoutes() {
           createdAt: user.createdAt,
           lastLogin: user.lastLogin,
           customNote: user.customNote,
+          membershipLevel: user.membershipLevel,
           subscriptionConfig: user.subscriptionConfig,
           lastSyncResult: user.lastSyncResult
         });
@@ -11903,6 +9512,7 @@ function createAdminRoutes() {
       isAdmin: body.isAdmin || false,
       createdAt: (/* @__PURE__ */ new Date()).toISOString(),
       customNote: body.customNote,
+      membershipLevel: body.membershipLevel,
       subscriptionConfig: body.subscriptionConfig
     };
     await storage.set(`${STORAGE_KEYS.USERS_PREFIX}${body.username}`, user);
@@ -11925,6 +9535,9 @@ function createAdminRoutes() {
     if (body.customNote !== void 0) {
       user.customNote = body.customNote;
     }
+    if (body.membershipLevel !== void 0) {
+      user.membershipLevel = body.membershipLevel;
+    }
     if (body.subscriptionConfig !== void 0) {
       user.subscriptionConfig = body.subscriptionConfig;
     }
@@ -11937,19 +9550,53 @@ function createAdminRoutes() {
     await storage.delete(`${STORAGE_KEYS.USERS_PREFIX}${username}`);
     return c.json({ success: true });
   });
+  admin.get("/config/membership", async (c) => {
+    const storage = c.get("storage");
+    const config = await storage.get(STORAGE_KEYS.MEMBERSHIP_CONFIG);
+    const levels = config?.levels || ["\u666E\u901A\u7528\u6237", "VIP\u4F1A\u5458", "\u9AD8\u7EA7VIP"];
+    return c.json({ levels });
+  });
+  admin.post("/config/membership", async (c) => {
+    const storage = c.get("storage");
+    const body = await c.req.json();
+    if (!body.levels || !Array.isArray(body.levels)) {
+      return c.json({ error: "\u65E0\u6548\u7684\u914D\u7F6E\u683C\u5F0F" }, 400);
+    }
+    await storage.set(STORAGE_KEYS.MEMBERSHIP_CONFIG, { levels: body.levels });
+    return c.json({ success: true });
+  });
+  admin.get("/config/notification", async (c) => {
+    const storage = c.get("storage");
+    const config = await storage.get(STORAGE_KEYS.NOTIFICATION_CONFIG);
+    const defaultConfig = {
+      login: { enabled: false, content: "", type: "info" },
+      home: { enabled: false, content: "", title: "" }
+    };
+    return c.json(config || defaultConfig);
+  });
+  admin.post("/config/notification", async (c) => {
+    const storage = c.get("storage");
+    const body = await c.req.json();
+    if (!body.login || !body.home) {
+      return c.json({ error: "\u65E0\u6548\u7684\u914D\u7F6E\u683C\u5F0F" }, 400);
+    }
+    await storage.set(STORAGE_KEYS.NOTIFICATION_CONFIG, body);
+    return c.json({ success: true });
+  });
   admin.get("/export", async (c) => {
     const storage = c.get("storage");
     const env = c.get("env");
     const syncResult = await storage.get(STORAGE_KEYS.SYNC_RESULT);
     const userKeys = await storage.list(STORAGE_KEYS.USERS_PREFIX);
-    const rows = ["\u7528\u6237\u540D,\u8282\u70B9\u6570,\u6700\u65E9\u5230\u671F,\u5269\u4F59\u6D41\u91CFGB,\u6807\u7B7E"];
+    const rows = ["\u7528\u6237\u540D,\u4F1A\u5458\u7B49\u7EA7,\u8282\u70B9\u6570,\u6700\u65E9\u5230\u671F,\u5269\u4F59\u6D41\u91CFGB,\u6807\u7B7E"];
     const adminTag = getExpireTag(syncResult?.earliestExpire);
-    rows.push(`${env.ADMIN_USERNAME},${syncResult?.nodeCount || 0},${syncResult?.earliestExpire || "N/A"},${syncResult?.totalRemainGB || "N/A"},${adminTag}`);
+    rows.push(`${env.ADMIN_USERNAME},VIP\u7528\u6237,${syncResult?.nodeCount || 0},${syncResult?.earliestExpire || "N/A"},${syncResult?.totalRemainGB || "N/A"},${adminTag}`);
     for (const key of userKeys) {
       const user = await storage.get(key);
       if (user) {
         const tag2 = getExpireTag(syncResult?.earliestExpire);
-        rows.push(`${user.username},${syncResult?.nodeCount || 0},${syncResult?.earliestExpire || "N/A"},${syncResult?.totalRemainGB || "N/A"},${tag2}`);
+        const level = user.membershipLevel || (user.isAdmin ? "\u7BA1\u7406\u5458" : "\u666E\u901A\u7528\u6237");
+        rows.push(`${user.username},${level},${syncResult?.nodeCount || 0},${syncResult?.earliestExpire || "N/A"},${syncResult?.totalRemainGB || "N/A"},${tag2}`);
       }
     }
     const csv = rows.join("\n");
@@ -12125,13 +9772,20 @@ function createAdminRoutes() {
     const userKeys = await storage.list(STORAGE_KEYS.USERS_PREFIX);
     const boundTokenValues = /* @__PURE__ */ new Set();
     const boundCompositeKeys = /* @__PURE__ */ new Set();
+    const allUsers = [];
     for (const key of userKeys) {
       const user = await storage.get(key);
-      if (user?.subscriptionConfig?.token) {
+      if (!user) continue;
+      if (user.subscriptionConfig?.token) {
         boundTokenValues.add(user.subscriptionConfig.token);
         const compositeKey = user.subscriptionConfig.token + "::" + (user.subscriptionConfig.collectionName || "");
         boundCompositeKeys.add(compositeKey);
-        console.log(`[Unbound] \u5DF2\u7ED1\u5B9A\u7528\u6237 ${user.username}: token=${user.subscriptionConfig.token}, col=${user.subscriptionConfig.collectionName}, key=${compositeKey}`);
+      }
+      if (!user.isAdmin) {
+        allUsers.push({
+          username: user.username,
+          hasSub: !!user.subscriptionConfig
+        });
       }
     }
     if (allTokens.length > 0) {
@@ -12141,20 +9795,9 @@ function createAdminRoutes() {
       const tokenValue = t.token || "";
       const isBound = boundTokenValues.has(tokenValue);
       if (isBound) {
-        console.log(`[Unbound] \u8FC7\u6EE4\u6389\u5DF2\u7ED1\u5B9A token: ${tokenValue}`);
       }
       return !isBound;
     });
-    const allUsers = [];
-    for (const key of userKeys) {
-      const user = await storage.get(key);
-      if (user && !user.isAdmin) {
-        allUsers.push({
-          username: user.username,
-          hasSub: !!user.subscriptionConfig
-        });
-      }
-    }
     console.log(`[Unbound] \u603B\u8BA1: ${allTokens.length}, \u5DF2\u7ED1\u5B9A: ${allTokens.length - unboundTokens.length}, \u5F85\u5206\u914D: ${unboundTokens.length}`);
     return c.json({
       success: true,
@@ -12248,39 +9891,23 @@ var html = (strings, ...values) => {
 };
 
 // src/routes/pages.ts
-init_storage();
-init_auth();
-
-// src/utils/qrcode.ts
-var import_qrcode = __toESM(require_browser(), 1);
-async function generateQRCodeSVG(text) {
-  return import_qrcode.default.toString(text, {
-    type: "svg",
-    margin: 2,
-    width: 200,
-    color: {
-      dark: "#000000",
-      light: "#ffffff"
-    }
-  });
-}
-
-// src/routes/pages.ts
 function createPageRoutes() {
   const pages = new Hono2();
-  pages.get("/login", (c) => {
-    return c.html(renderLoginPage());
+  pages.get("/login", async (c) => {
+    const storage = c.get("storage");
+    const notificationConfig = await storage.get(STORAGE_KEYS.NOTIFICATION_CONFIG);
+    return c.html(renderLoginPage(notificationConfig?.login));
   });
   pages.get("/", async (c) => {
     const env = c.get("env");
     const storage = c.get("storage");
     const token = c.req.header("Cookie")?.match(/token=([^;]+)/)?.[1];
     if (!token) {
-      return c.redirect("/login");
+      return c.html(renderWelcomePage());
     }
     const payload = await verifyToken(token, env.AUTH_SECRET);
     if (!payload) {
-      return c.redirect("/login");
+      return c.html(renderWelcomePage());
     }
     const user = await storage.get(`${STORAGE_KEYS.USERS_PREFIX}${payload.sub}`);
     const substoreConfig = await storage.get("config:substore");
@@ -12303,15 +9930,11 @@ function createPageRoutes() {
       lastSync: userSyncResult.lastSync,
       nodeCount: userSyncResult.nodeCount,
       earliestExpire: userSyncResult.earliestExpire,
-      totalRemainGB: userSyncResult.totalRemainGB
+      totalRemainGB: userSyncResult.totalRemainGB,
+      protocols: userSyncResult.protocols || globalSyncResult?.protocols
     } : globalSyncResult;
-    let qrcodeSvg = "";
-    try {
-      qrcodeSvg = await generateQRCodeSVG(subscriptionUrl);
-    } catch {
-      qrcodeSvg = "<p>\u4E8C\u7EF4\u7801\u751F\u6210\u5931\u8D25</p>";
-    }
-    return c.html(renderHomePage(payload.sub, payload.isAdmin, syncResult, qrcodeSvg, subscriptionUrl, env, collectionName));
+    const notificationConfig = await storage.get(STORAGE_KEYS.NOTIFICATION_CONFIG);
+    return c.html(renderHomePage(payload.sub, payload.isAdmin, user?.membershipLevel, syncResult, subscriptionUrl, env, collectionName, notificationConfig?.home));
   });
   pages.get("/admin", async (c) => {
     const env = c.get("env");
@@ -12335,14 +9958,214 @@ function createPageRoutes() {
   });
   return pages;
 }
+function renderWelcomePage() {
+  return html`<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sub-Hub - 您的数字自由入口</title>
+  <style>
+    :root {
+      --primary: #8a2be2;
+      --secondary: #00d2ff;
+      --bg: #050505;
+      --card-bg: rgba(255, 255, 255, 0.05);
+      --text: #ffffff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+    .gradient-bg {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: radial-gradient(circle at 50% 50%, #1a1a2e 0%, #050505 100%);
+      z-index: -1;
+    }
+    .neon-circle {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      z-index: -1;
+      opacity: 0.4;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+    nav {
+      padding: 30px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo {
+      font-size: 24px;
+      font-weight: 800;
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero {
+      padding: 100px 0 60px;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: clamp(2.5rem, 8vw, 4.5rem);
+      font-weight: 900;
+      margin-bottom: 20px;
+      line-height: 1.1;
+      letter-spacing: -2px;
+    }
+    .hero p {
+      font-size: 20px;
+      color: #aaa;
+      max-width: 700px;
+      margin: 0 auto 40px;
+    }
+    .cta-button {
+      display: inline-block;
+      padding: 16px 40px;
+      background: linear-gradient(135deg, var(--primary) 0%, #6a11cb 100%);
+      color: white;
+      text-decoration: none;
+      border-radius: 50px;
+      font-weight: 700;
+      font-size: 18px;
+      transition: all 0.3s;
+      box-shadow: 0 10px 30px rgba(138, 43, 226, 0.4);
+    }
+    .cta-button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 15px 40px rgba(138, 43, 226, 0.6);
+    }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 30px;
+      padding: 60px 0;
+    }
+    .feature-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 40px;
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .feature-card:hover {
+      transform: translateY(-10px);
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--primary);
+    }
+    .feature-icon {
+      font-size: 40px;
+      margin-bottom: 20px;
+    }
+    .feature-card h3 {
+      font-size: 22px;
+      margin-bottom: 15px;
+    }
+    .feature-card p {
+      color: #999;
+      font-size: 15px;
+    }
+    .badge {
+      display: inline-block;
+      background: var(--secondary);
+      color: #000;
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      margin-left: 8px;
+    }
+    footer {
+      padding: 60px 0;
+      text-align: center;
+      color: #666;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    @media (max-width: 768px) {
+      .hero { padding: 60px 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="gradient-bg"></div>
+  <div class="neon-circle" style="width: 400px; height: 400px; background: var(--primary); top: -100px; right: -100px;"></div>
+  <div class="neon-circle" style="width: 300px; height: 300px; background: var(--secondary); bottom: -50px; left: -50px;"></div>
+
+  <div class="container">
+    <nav>
+      <div class="logo">Sub-Hub</div>
+      <a href="/login" class="cta-button" style="padding: 10px 25px; font-size: 14px;">立即登录</a>
+    </nav>
+
+    <section class="hero">
+      <h1>连接全球<br>开启数字自由之窗</h1>
+      <p>Sub-Hub 不仅仅是一个订阅同步工具，它是您通往无限资源、前沿 AI 与顶尖技术的专属门户。</p>
+      <a href="/login" class="cta-button">立即开启体验</a>
+    </section>
+
+    <section class="features">
+      <div class="feature-card">
+        <div class="feature-icon">📺</div>
+        <h3>全球英文动画 <span class="badge">实时</span></h3>
+        <p>与官方同步，实时更新。在线免费观看海外优质英文动画片，无需占用网盘空间，即开即播，为成长注入原生动力。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📚</div>
+        <h3>全球教学教研资源 <span class="badge">权威</span></h3>
+        <p>汇聚全球顶尖英语教学大纲、教案课件与学术论文。为教师与研究者提供一键式资源获取通道，实时追踪国际前沿教学方法论。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎓</div>
+        <h3>学生互动学习中心 <span class="badge">专业</span></h3>
+        <p>专为学生打造的沉浸式英语学习环境。内置 AI 陪练、趣味互动练习与海量分级阅读材料，助力学生在真实语境中快速提升语言素养。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <h3>顶尖 AI 实验室 <span class="badge">免费</span></h3>
+        <p>集成 GPT-4o, Claude 3.5 等全球最强 AI 模型。无论是创意协作还是代码解析，在 Sub-Hub 均可免费无限量体验。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💻</div>
+        <h3>前沿开发方案 <span class="badge">生产力</span></h3>
+        <p>免费使用 Cursor 模式及最前沿的编程辅助工具。第一时间获取业界一手技术资讯与黑科技资源，走在时代最前沿。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔗</div>
+        <h3>极致订阅同步 <span class="badge">核心</span></h3>
+        <p>深度整合 Sub-Store。支持全平台订阅链接一键管理、自动同步与多端下发，让网络配置从此化繁为简。</p>
+      </div>
+    </section>
+
+    <footer>
+      <p>&copy; 2026 Sub-Hub 订阅管理平台. All rights reserved.</p>
+    </footer>
+  </div>
+</body>
+</html>`;
+}
 var _a;
-function renderLoginPage() {
+function renderLoginPage(notification) {
+  const notificationHtml = notification?.enabled && notification?.content ? html`<div class="notification-alert ${notification.type}">${raw(notification.content)}</div>` : "";
   return html(_a || (_a = __template([`<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>\u767B\u5F55 - Sub-Store \u540C\u6B65\u5E73\u53F0</title>
+  <title>\u767B\u5F55 - Sub-Hub \u8BA2\u9605\u7BA1\u7406\u5E73\u53F0</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -12410,11 +10233,22 @@ function renderLoginPage() {
       margin-bottom: 20px;
       display: none;
     }
+    .notification-alert {
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .notification-alert.info { background: #e3f2fd; color: #0d47a1; border: 1px solid #bbdefb; }
+    .notification-alert.warning { background: #fff3e0; color: #e65100; border: 1px solid #ffe0b2; }
+    .notification-alert.error { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
   </style>
 </head>
 <body>
   <div class="login-card">
-    <h1>\u{1F510} Sub-Store \u540C\u6B65\u5E73\u53F0</h1>
+    <h1>\u{1F510} Sub-Hub \u8BA2\u9605\u7BA1\u7406\u5E73\u53F0</h1>
+    `, `
     <div class="error" id="error"></div>
     <form id="loginForm">
       <div class="form-group">
@@ -12456,10 +10290,10 @@ function renderLoginPage() {
     });
   <\/script>
 </body>
-</html>`])));
+</html>`])), notificationHtml);
 }
 var _b;
-function renderHomePage(username, isAdmin, syncResult, qrcodeSvg, subscriptionUrl, env, collectionName) {
+function renderHomePage(username, isAdmin, membershipLevel, syncResult, subscriptionUrl, env, collectionName, notification) {
   const lastSync = syncResult?.lastSync ? new Date(syncResult.lastSync).toLocaleString("zh-CN") : "\u4ECE\u672A\u540C\u6B65";
   const expireInfo = syncResult?.earliestExpire ? `${syncResult.earliestExpire} (${getExpireLabel(syncResult.earliestExpire)})` : "\u65E0\u6570\u636E";
   return html(_b || (_b = __template([`<!DOCTYPE html>
@@ -12467,7 +10301,8 @@ function renderHomePage(username, isAdmin, syncResult, qrcodeSvg, subscriptionUr
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>\u8BA2\u9605\u4E2D\u5FC3 - Sub-Store \u540C\u6B65\u5E73\u53F0</title>
+  <title>\u8BA2\u9605\u4E2D\u5FC3 - Sub-Hub \u8BA2\u9605\u7BA1\u7406\u5E73\u53F0</title>
+  <script src="https://cdn.staticfile.org/qrcode/1.4.4/qrcode.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/qrcode@1.4.4/build/qrcode.min.js'"><\/script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -12482,8 +10317,17 @@ function renderHomePage(username, isAdmin, syncResult, qrcodeSvg, subscriptionUr
       display: flex;
       justify-content: space-between;
       align-items: center;
+      position: relative;
     }
     .header h1 { font-size: 20px; }
+    .header-title {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 20px;
+      font-weight: 700;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
     .header-actions { display: flex; gap: 10px; }
     .header-actions a, .header-actions button {
       background: rgba(255,255,255,0.2);
@@ -12549,11 +10393,13 @@ function renderHomePage(username, isAdmin, syncResult, qrcodeSvg, subscriptionUr
       padding: 15px;
       border-radius: 12px;
       border: 2px solid #e1e5eb;
+      min-height: 230px; /* \u9884\u7559\u9AD8\u5EA6\u9632\u6B62\u6296\u52A8 */
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
-    .qrcode-wrapper svg {
+    .qrcode-wrapper canvas {
       display: block;
-      width: 200px;
-      height: 200px;
     }
     .url-display {
       background: #f8f9fa;
@@ -12648,11 +10494,56 @@ function renderHomePage(username, isAdmin, syncResult, qrcodeSvg, subscriptionUr
     }
     .message.success { background: #d4edda; color: #155724; display: block; }
     .message.error { background: #f8d7da; color: #721c24; display: block; }
+    
+    .notification-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+      border-left: 5px solid #667eea;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    .notification-card h3 {
+      margin-bottom: 15px;
+      font-size: 18px;
+      color: #333;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .notification-content {
+      font-size: 15px;
+      line-height: 1.6;
+      color: #555;
+    }
+    .notification-content img {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+
+    .toast {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 12px 24px;
+      border-radius: 24px;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      font-size: 14px;
+    }
+    .toast.show { opacity: 1; }
   </style>
 </head>
 <body>
+  <div id="toast" class="toast"></div>
   <div class="header">
-    <h1>\u{1F44B} \u6B22\u8FCE\uFF0C`, '</h1>\n    <div class="header-actions">\n      ', '\n      <button onclick="logout()">\u9000\u51FA\u767B\u5F55</button>\n    </div>\n  </div>\n  \n  <div class="container">\n    <div class="card">\n      <h2 class="card-title">\u{1F464} \u7528\u6237\u4FE1\u606F</h2>\n      <div class="user-info-grid">\n        <div class="info-item">\n          <div class="info-label">\u7528\u6237\u540D</div>\n          <div class="info-value">', '</div>\n        </div>\n        <div class="info-item">\n          <div class="info-label">\u89D2\u8272</div>\n          <div class="info-value">', '</div>\n        </div>\n        <div class="info-item">\n          <div class="info-label">\u8BA2\u9605\u6765\u6E90</div>\n          <div class="info-value">', '</div>\n        </div>\n        <div class="info-item">\n          <div class="info-label">\u8282\u70B9\u6570\u91CF</div>\n          <div class="info-value">', ' \u4E2A</div>\n        </div>\n      </div>\n    </div>\n    \n    <div class="card">\n      <h2 class="card-title">\u{1F4CA} \u8BA2\u9605\u7EDF\u8BA1</h2>\n      <div class="stats-grid">\n        <div class="stat-item">\n          <div class="stat-value">', '</div>\n          <div class="stat-label">\u8282\u70B9\u6570\u91CF</div>\n        </div>\n        <div class="stat-item">\n          <div class="stat-value">', '</div>\n          <div class="stat-label">VLESS</div>\n        </div>\n        <div class="stat-item">\n          <div class="stat-value">', '</div>\n          <div class="stat-label">Trojan</div>\n        </div>\n        <div class="stat-item">\n          <div class="stat-value">', '</div>\n          <div class="stat-label">\u5269\u4F59\u6D41\u91CF</div>\n        </div>\n      </div>\n    </div>\n    \n    <div class="card">\n      <h2 class="card-title">\u23F0 \u540C\u6B65\u4FE1\u606F</h2>\n      <p><strong>\u6700\u540E\u540C\u6B65:</strong> ', '</p>\n      <p><strong>\u6700\u65E9\u5230\u671F:</strong> <span class="', '">', '</span></p>\n    </div>\n    \n    <div class="card">\n      <h2 class="card-title">\u{1F4F1} \u8BA2\u9605\u4E8C\u7EF4\u7801</h2>\n      <div class="qrcode-section">\n        <div class="qrcode-wrapper">', '</div>\n        <div class="url-display">', `</div>
+    <h1>\u{1F44B} \u6B22\u8FCE\uFF0C`, '</h1>\n    <div class="header-title">Sub-Hub \u8BA2\u9605\u7BA1\u7406\u5E73\u53F0</div>\n    <div class="header-actions">\n      ', '\n      <button onclick="logout()">\u9000\u51FA\u767B\u5F55</button>\n    </div>\n  </div>\n  \n  <div class="container">\n    ', '\n\n    <div class="card">\n      <h2 class="card-title">\u{1F464} \u7528\u6237\u4FE1\u606F</h2>\n      <div class="user-info-grid">\n        <div class="info-item">\n          <div class="info-label">\u7528\u6237\u540D</div>\n          <div class="info-value">', '</div>\n        </div>\n        <div class="info-item">\n          <div class="info-label">\u89D2\u8272</div>\n          <div class="info-value">', '</div>\n        </div>\n        <div class="info-item">\n          <div class="info-label">\u8BA2\u9605\u6765\u6E90</div>\n          <div class="info-value">', '</div>\n        </div>\n        <div class="info-item">\n          <div class="info-label">\u8282\u70B9\u6570\u91CF</div>\n          <div class="info-value">', ' \u4E2A</div>\n        </div>\n      </div>\n    </div>\n    \n    <div class="card">\n      <h2 class="card-title">\u{1F4CA} \u8BA2\u9605\u7EDF\u8BA1</h2>\n      <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 20px;">\n        <div class="stat-item">\n          <div class="stat-value">', '</div>\n          <div class="stat-label">\u8282\u70B9\u6570\u91CF</div>\n        </div>\n        <div class="stat-item">\n          <div class="stat-value">', '</div>\n          <div class="stat-label">\u5269\u4F59\u6D41\u91CF</div>\n        </div>\n      </div>\n      \n      <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">\n        <div class="stat-item">\n          <div class="stat-value">', '</div>\n          <div class="stat-label">VLESS</div>\n        </div>\n        <div class="stat-item">\n          <div class="stat-value">', '</div>\n          <div class="stat-label">Trojan</div>\n        </div>\n        <div class="stat-item">\n          <div class="stat-value">', '</div>\n          <div class="stat-label">Shadowsocks</div>\n        </div>\n        <div class="stat-item">\n          <div class="stat-value">', '</div>\n          <div class="stat-label">VMess</div>\n        </div>\n      </div>\n    </div>\n    \n    <div class="card">\n      <h2 class="card-title">\n        \u23F0 \u540C\u6B65\u4FE1\u606F\n        <button class="btn btn-sm" id="syncBtn" onclick="syncNow()" style="float: right; font-size: 12px; padding: 4px 10px;">\u{1F504} \u7ACB\u5373\u540C\u6B65</button>\n      </h2>\n      <p><strong>\u6700\u540E\u540C\u6B65:</strong> ', '</p>\n      <p><strong>\u6700\u65E9\u5230\u671F:</strong> <span class="', '">', '</span></p>\n    </div>\n    \n    <div class="card">\n      <h2 class="card-title">\u{1F4F1} \u8BA2\u9605\u4E8C\u7EF4\u7801</h2>\n      <div class="qrcode-section">\n        <div class="qrcode-wrapper">\n          <canvas id="qrcode-canvas"></canvas>\n        </div>\n        <!-- \u5B89\u5168\u4F20\u9012\u6570\u636E\uFF1A\u4F7F\u7528 hidden input \u907F\u514D JS \u8BED\u6CD5\u9519\u8BEF -->\n        <input type="hidden" id="sub-url-data" value="', '">\n        <div class="url-display">', `</div>
         <button class="copy-btn" id="copyBtn" onclick="copySubscriptionUrl()">\u{1F4CB} \u590D\u5236\u8BA2\u9605\u94FE\u63A5</button>
       </div>
     </div>
@@ -12679,7 +10570,141 @@ function renderHomePage(username, isAdmin, syncResult, qrcodeSvg, subscriptionUr
   </div>
   
   <script>
-    const SUBSCRIPTION_URL = '`, "';\n    \n    async function logout() {\n      await fetch('/api/auth/logout', { method: 'POST' });\n      window.location.href = '/login';\n    }\n    \n    function copySubscriptionUrl() {\n      navigator.clipboard.writeText(SUBSCRIPTION_URL).then(() => {\n        const btn = document.getElementById('copyBtn');\n        btn.textContent = '\u2705 \u5DF2\u590D\u5236';\n        btn.classList.add('copied');\n        setTimeout(() => {\n          btn.textContent = '\u{1F4CB} \u590D\u5236\u8BA2\u9605\u94FE\u63A5';\n          btn.classList.remove('copied');\n        }, 2000);\n      });\n    }\n    \n    async function changePassword(e) {\n      e.preventDefault();\n      const msgEl = document.getElementById('passwordMessage');\n      const currentPassword = document.getElementById('currentPassword').value;\n      const newPassword = document.getElementById('newPassword').value;\n      const confirmPassword = document.getElementById('confirmPassword').value;\n      \n      if (newPassword !== confirmPassword) {\n        msgEl.textContent = '\u4E24\u6B21\u8F93\u5165\u7684\u65B0\u5BC6\u7801\u4E0D\u4E00\u81F4';\n        msgEl.className = 'message error';\n        return;\n      }\n      \n      try {\n        const res = await fetch('/api/me/password', {\n          method: 'PUT',\n          headers: { 'Content-Type': 'application/json' },\n          body: JSON.stringify({ currentPassword, newPassword }),\n        });\n        const data = await res.json();\n        \n        if (data.success) {\n          msgEl.textContent = '\u5BC6\u7801\u4FEE\u6539\u6210\u529F';\n          msgEl.className = 'message success';\n          document.getElementById('passwordForm').reset();\n        } else {\n          msgEl.textContent = data.error || '\u5BC6\u7801\u4FEE\u6539\u5931\u8D25';\n          msgEl.className = 'message error';\n        }\n      } catch (err) {\n        msgEl.textContent = '\u7F51\u7EDC\u9519\u8BEF';\n        msgEl.className = 'message error';\n      }\n    }\n  <\/script>\n</body>\n</html>"])), username, isAdmin ? html`<a href="/admin">管理后台</a>` : "", username, isAdmin ? "\u7BA1\u7406\u5458" : "\u666E\u901A\u7528\u6237", collectionName, syncResult?.nodeCount || 0, syncResult?.nodeCount || 0, syncResult?.protocols?.vless || 0, syncResult?.protocols?.trojan || 0, syncResult?.totalRemainGB ? `${syncResult.totalRemainGB}GB` : "N/A", lastSync, getExpireClass(syncResult?.earliestExpire), expireInfo, raw(qrcodeSvg), subscriptionUrl, subscriptionUrl);
+    // \u4ECE DOM \u8BFB\u53D6 URL\uFF0C\u907F\u514D\u6A21\u677F\u63D2\u503C\u5BFC\u81F4\u7684 SyntaxError
+    const SUBSCRIPTION_URL = document.getElementById('sub-url-data').value;
+    
+    function showToast(message, duration = 2000) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, duration);
+    }
+
+    // \u751F\u6210\u4E8C\u7EF4\u7801 (\u9632\u6296 + \u786E\u4FDD DOM \u52A0\u8F7D)
+    function generateQRCode() {
+      const canvas = document.getElementById('qrcode-canvas');
+      if (!canvas || !window.QRCode) {
+        if (typeof window.QRCode === 'undefined') {
+            console.warn('QRCode library loading...');
+        }
+        setTimeout(generateQRCode, 500);
+        return;
+      }
+
+      try {
+        QRCode.toCanvas(canvas, SUBSCRIPTION_URL, { 
+          width: 200, 
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#ffffff'
+          },
+          errorCorrectionLevel: 'M'
+        }, function (error) {
+          if (error) {
+             // \u5FFD\u7565
+          }
+        });
+      } catch (e) {
+         // \u5FFD\u7565
+      }
+    }
+
+    if (document.readyState === 'complete') {
+      generateQRCode();
+    } else {
+      window.addEventListener('load', generateQRCode);
+    }
+    
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    }
+
+    async function syncNow() {
+      const btn = document.getElementById('syncBtn');
+      const originalText = btn.textContent;
+      btn.textContent = '\u23F3 \u540C\u6B65\u4E2D...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/subscription/sync', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          showToast('\u540C\u6B65\u6210\u529F\uFF01\u53D1\u73B0 ' + data.count + ' \u4E2A\u8282\u70B9');
+          setTimeout(() => {
+             window.location.reload();
+          }, 1500);
+        } else {
+          alert('\u540C\u6B65\u5931\u8D25: ' + (data.error || '\u672A\u77E5\u9519\u8BEF'));
+          btn.textContent = originalText;
+          btn.disabled = false;
+        }
+      } catch (e) {
+        alert('\u540C\u6B65\u8BF7\u6C42\u5931\u8D25: ' + e.message);
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
+    }
+    
+    function copySubscriptionUrl() {
+      navigator.clipboard.writeText(SUBSCRIPTION_URL).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = '\u2705 \u5DF2\u590D\u5236';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = '\u{1F4CB} \u590D\u5236\u8BA2\u9605\u94FE\u63A5';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+    
+    
+    async function changePassword(e) {
+      e.preventDefault();
+      const msgEl = document.getElementById('passwordMessage');
+      const currentPassword = document.getElementById('currentPassword').value;
+      const newPassword = document.getElementById('newPassword').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+      
+      if (newPassword !== confirmPassword) {
+        msgEl.textContent = '\u4E24\u6B21\u8F93\u5165\u7684\u65B0\u5BC6\u7801\u4E0D\u4E00\u81F4';
+        msgEl.className = 'message error';
+        return;
+      }
+      
+      try {
+        const res = await fetch('/api/me/password', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currentPassword, newPassword }),
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          msgEl.textContent = '\u5BC6\u7801\u4FEE\u6539\u6210\u529F';
+          msgEl.className = 'message success';
+          document.getElementById('passwordForm').reset();
+        } else {
+          msgEl.textContent = data.error || '\u5BC6\u7801\u4FEE\u6539\u5931\u8D25';
+          msgEl.className = 'message error';
+        }
+      } catch (err) {
+        msgEl.textContent = '\u7F51\u7EDC\u9519\u8BEF';
+        msgEl.className = 'message error';
+      }
+    }
+  <\/script>
+</body>
+</html>`])), username, isAdmin ? html`<a href="/admin">管理后台</a>` : "", notification?.enabled && notification?.content ? html`
+    <div class="notification-card">
+      ${notification.title ? html`<h3>📢 ${notification.title}</h3>` : ""}
+      <div class="notification-content">${raw(notification.content)}</div>
+    </div>
+    ` : "", username, membershipLevel || (isAdmin ? "\u7BA1\u7406\u5458" : "\u666E\u901A\u7528\u6237"), collectionName, syncResult?.nodeCount || 0, syncResult?.nodeCount || 0, syncResult?.totalRemainGB ? `${syncResult.totalRemainGB}GB` : "\u65E0\u9650\u6D41\u91CF", syncResult?.protocols?.vless || 0, syncResult?.protocols?.trojan || 0, syncResult?.protocols?.shadowsocks || 0, syncResult?.protocols?.vmess || 0, lastSync, getExpireClass(syncResult?.earliestExpire), expireInfo, subscriptionUrl, subscriptionUrl);
 }
 var _c;
 function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
@@ -12688,7 +10713,7 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>\u7BA1\u7406\u540E\u53F0 - Sub-Store \u540C\u6B65\u5E73\u53F0</title>
+  <title>\u7BA1\u7406\u540E\u53F0 - Sub-Hub \u8BA2\u9605\u7BA1\u7406\u5E73\u53F0</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -12703,8 +10728,17 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      position: relative;
     }
     .header h1 { font-size: 20px; }
+    .header-title {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 20px;
+      font-weight: 700;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
     .header-actions { display: flex; gap: 10px; }
     .header-actions a, .header-actions button {
       background: rgba(255,255,255,0.2);
@@ -12935,6 +10969,7 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
   <div class="toast-container" id="toastContainer"></div>
   <div class="header">
     <h1>\u{1F527} \u7BA1\u7406\u540E\u53F0</h1>
+    <div class="header-title">Sub-Hub \u8BA2\u9605\u7BA1\u7406\u5E73\u53F0</div>
     <div class="header-actions">
       <a href="/">\u8FD4\u56DE\u4E3B\u9875</a>
       <button onclick="logout()">\u9000\u51FA\u767B\u5F55</button>
@@ -12948,17 +10983,19 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
         <span>\u26A1 \u5FEB\u901F\u64CD\u4F5C</span>
       </div>
       <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button class="btn" onclick="openModal('notificationModal')">\u{1F4E2} \u7F51\u7AD9\u901A\u77E5\u914D\u7F6E</button>
+        <button class="btn" onclick="showAddUserModal()">\u2795 \u6DFB\u52A0\u7528\u6237</button>
         <button class="btn btn-success" onclick="syncAllUsers()">\u{1F504} \u5168\u5C40\u540C\u6B65</button>
         <a href="/api/admin/export" class="btn" style="text-decoration: none;">\u{1F4E5} \u5BFC\u51FA CSV</a>
-        <button class="btn" onclick="showAddUserModal()">\u2795 \u6DFB\u52A0\u7528\u6237</button>
         <button class="btn" onclick="showSubstoreConfig()" style="background:linear-gradient(135deg,#f39c12 0%,#e67e22 100%);">\u{1F527} Sub-Store \u914D\u7F6E</button>
+        <button class="btn" onclick="showMembershipConfig()" style="background:linear-gradient(135deg,#9b59b6 0%,#8e44ad 100%);">\u{1F451} \u4F1A\u5458\u7B49\u7EA7\u914D\u7F6E</button>
       </div>
       <div id="syncResult" class="sync-result"></div>
     </div>
 
     
     <!-- \u81EA\u52A8\u540C\u6B65\u914D\u7F6E -->
-    <div class="card">
+    <div class="card" id="autoSyncConfigCard">
       <div class="card-title">
         <span>\u23F0 \u81EA\u52A8\u540C\u6B65\u914D\u7F6E</span>
       </div>
@@ -13046,6 +11083,60 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
     </div>
   </div>
   
+  <!-- \u901A\u77E5\u914D\u7F6E\u6A21\u6001\u6846 -->
+  <div class="modal" id="notificationModal">
+    <div class="modal-content" style="max-width: 600px;">
+      <h3 class="modal-title">\u{1F4E2} \u7F51\u7AD9\u901A\u77E5\u914D\u7F6E</h3>
+      <form id="notificationForm" onsubmit="saveNotificationConfig(event)">
+        <div style="display: flex; border-bottom: 1px solid #ddd; margin-bottom: 20px;">
+          <div class="tab-item active" onclick="switchTab(this, 'login-notify')" style="padding: 10px 20px; cursor: pointer; border-bottom: 2px solid #667eea; color: #667eea;">\u767B\u5F55\u9875\u901A\u77E5</div>
+          <div class="tab-item" onclick="switchTab(this, 'home-notify')" style="padding: 10px 20px; cursor: pointer; border-bottom: 2px solid transparent;">\u9996\u9875\u516C\u544A</div>
+        </div>
+
+        <div id="login-notify" class="tab-content">
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="loginEnabled"> \u542F\u7528\u767B\u5F55\u9875\u901A\u77E5
+            </label>
+          </div>
+          <div class="form-group">
+            <label>\u901A\u77E5\u7C7B\u578B</label>
+            <select id="loginType" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+              <option value="info">Info (\u84DD\u8272)</option>
+              <option value="warning">Warning (\u9EC4\u8272)</option>
+              <option value="error">Error (\u7EA2\u8272)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>\u901A\u77E5\u5185\u5BB9 (\u652F\u6301 HTML)</label>
+            <textarea id="loginContent" rows="4"></textarea>
+          </div>
+        </div>
+
+        <div id="home-notify" class="tab-content" style="display: none;">
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="homeEnabled"> \u542F\u7528\u9996\u9875\u516C\u544A
+            </label>
+          </div>
+          <div class="form-group">
+            <label>\u516C\u544A\u6807\u9898</label>
+            <input type="text" id="homeTitle" placeholder="\u4F8B\u5982\uFF1A\u7EF4\u62A4\u901A\u77E5">
+          </div>
+          <div class="form-group">
+            <label>\u516C\u544A\u5185\u5BB9 (\u652F\u6301 HTML\uFF0C\u53EF\u63D2\u5165\u56FE\u7247)</label>
+            <textarea id="homeContent" rows="6" placeholder="<p>\u5185\u5BB9...</p><img src='...'>"></textarea>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-danger" onclick="closeModal('notificationModal')">\u53D6\u6D88</button>
+          <button type="submit" class="btn">\u4FDD\u5B58\u914D\u7F6E</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- \u6DFB\u52A0\u7528\u6237\u6A21\u6001\u6846 -->
   <div class="modal" id="addUserModal">
     <div class="modal-content">
@@ -13067,6 +11158,12 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
           <small>\u4ECE\u5F85\u5206\u914D\u7684\u5206\u4EAB Token \u4E2D\u9009\u62E9\uFF0C\u521B\u5EFA\u7528\u6237\u540E\u5C06\u81EA\u52A8\u7ED1\u5B9A</small>
         </div>
         <div class="form-group">
+          <label>\u4F1A\u5458\u7B49\u7EA7</label>
+          <select name="membershipLevel" id="addUserMembershipSelect" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+            <option value="">\u9ED8\u8BA4 (\u666E\u901A\u7528\u6237)</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label>\u5907\u6CE8</label>
           <textarea name="customNote" rows="2" placeholder="\u53EF\u9009\u5907\u6CE8\u4FE1\u606F"></textarea>
         </div>
@@ -13075,6 +11172,62 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
           <button type="submit" class="btn btn-success">\u521B\u5EFA\u7528\u6237</button>
         </div>
       </form>
+    </div>
+  </div>
+  
+  <!-- \u7F16\u8F91\u7528\u6237\u6A21\u6001\u6846 -->
+  <div class="modal" id="editUserModal">
+    <div class="modal-content">
+      <div class="modal-title">\u270F\uFE0F \u7F16\u8F91\u7528\u6237</div>
+      <form id="editUserForm" onsubmit="submitEditUser(event)">
+        <input type="hidden" name="username" id="editUserUsername">
+        <div class="form-group">
+          <label>\u7528\u6237\u540D</label>
+          <input type="text" id="editUserUsernameDisplay" disabled style="background:#f5f5f5;">
+        </div>
+        <div class="form-group">
+          <label>\u65B0\u5BC6\u7801 (\u7559\u7A7A\u5219\u4E0D\u4FEE\u6539)</label>
+          <input type="password" name="password" placeholder="\u8F93\u5165\u65B0\u5BC6\u7801">
+        </div>
+        <div class="form-group">
+          <label>\u4F1A\u5458\u7B49\u7EA7</label>
+          <select name="membershipLevel" id="editUserMembershipSelect" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+            <option value="">\u9ED8\u8BA4 (\u666E\u901A\u7528\u6237)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>\u5907\u6CE8</label>
+          <textarea name="customNote" id="editUserNote" rows="2" placeholder="\u53EF\u9009\u5907\u6CE8\u4FE1\u606F"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-danger" onclick="closeModal('editUserModal')">\u53D6\u6D88</button>
+          <button type="submit" class="btn btn-success">\u4FDD\u5B58\u4FEE\u6539</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- \u4F1A\u5458\u7B49\u7EA7\u914D\u7F6E\u6A21\u6001\u6846 -->
+  <div class="modal" id="membershipConfigModal">
+    <div class="modal-content">
+      <div class="modal-title">\u{1F451} \u4F1A\u5458\u7B49\u7EA7\u914D\u7F6E</div>
+      <div class="form-group">
+        <label>\u73B0\u6709\u7B49\u7EA7 (\u53EF\u901A\u8FC7\u62D6\u62FD\u6392\u5E8F)</label>
+        <div id="membershipLevelsList" style="max-height:200px;overflow-y:auto;border:1px solid #ddd;border-radius:6px;padding:10px;margin-bottom:10px;">
+          <div style="color:#999;text-align:center;">\u52A0\u8F7D\u4E2D...</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>\u6DFB\u52A0\u65B0\u7B49\u7EA7</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="newMembershipLevel" placeholder="\u8F93\u5165\u7B49\u7EA7\u540D\u79F0" style="flex:1;">
+          <button type="button" class="btn btn-sm" onclick="addMembershipLevel()">\u6DFB\u52A0</button>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-danger" onclick="closeModal('membershipConfigModal')">\u5173\u95ED</button>
+        <button type="button" class="btn btn-success" onclick="saveMembershipConfig()">\u4FDD\u5B58\u914D\u7F6E</button>
+      </div>
     </div>
   </div>
   
@@ -13392,10 +11545,15 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
             subInfo = '<div class="subscription-info" style="color:#999;">\u672A\u7ED1\u5B9A\u8BA2\u9605\u94FE\u63A5</div>';
           }
           
+          
           var card = document.createElement('div');
           card.className = 'user-card';
           card.id = 'user-' + u.username;
-          card.innerHTML = '<div class="user-name">' + u.username + ' ' + (u.isAdmin ? '<span class="tag tag-admin">\u7BA1\u7406\u5458</span> ' : '') + subTag + '</div>' +
+          
+          var roleTag = u.membershipLevel ? '<span class="tag" style="background:#9b59b6;color:white;">' + u.membershipLevel + '</span>' : '';
+          if (u.isAdmin) roleTag += ' <span class="tag tag-admin">\u7BA1\u7406\u5458</span>';
+          
+          card.innerHTML = '<div class="user-name">' + u.username + ' ' + roleTag + ' ' + subTag + '</div>' +
             '<div class="user-info">\u521B\u5EFA\u4E8E: ' + new Date(u.createdAt).toLocaleDateString('zh-CN') + '</div>' +
             (u.lastLogin ? '<div class="user-info">\u6700\u540E\u767B\u5F55: ' + new Date(u.lastLogin).toLocaleString('zh-CN') + '</div>' : '') +
             (u.customNote ? '<div class="user-info">\u5907\u6CE8: ' + u.customNote + '</div>' : '') +
@@ -13456,6 +11614,84 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
       setTimeout(function() { location.reload(); }, 2000);
     }
     
+    // Tab \u5207\u6362\u903B\u8F91
+    function switchTab(el, targetId) {
+        document.querySelectorAll('.tab-item').forEach(t => {
+            t.style.borderBottomColor = 'transparent';
+            t.style.color = '#333';
+            t.classList.remove('active');
+        });
+        el.style.borderBottomColor = '#667eea';
+        el.style.color = '#667eea';
+        el.classList.add('active');
+
+        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+        document.getElementById(targetId).style.display = 'block';
+    }
+
+    // \u52A0\u8F7D\u901A\u77E5\u914D\u7F6E
+    async function loadNotificationConfig() {
+        try {
+            const res = await fetch('/api/admin/config/notification');
+            const config = await res.json();
+            
+            // Login config
+            document.getElementById('loginEnabled').checked = config.login?.enabled;
+            document.getElementById('loginType').value = config.login?.type || 'info';
+            document.getElementById('loginContent').value = config.login?.content || '';
+
+            // Home config
+            document.getElementById('homeEnabled').checked = config.home?.enabled;
+            document.getElementById('homeTitle').value = config.home?.title || '';
+            document.getElementById('homeContent').value = config.home?.content || '';
+        } catch (e) {
+            showToast('\u52A0\u8F7D\u901A\u77E5\u914D\u7F6E\u5931\u8D25', 'error');
+        }
+    }
+
+    // \u4FDD\u5B58\u901A\u77E5\u914D\u7F6E
+    async function saveNotificationConfig(e) {
+        e.preventDefault();
+        const config = {
+            login: {
+                enabled: document.getElementById('loginEnabled').checked,
+                type: document.getElementById('loginType').value,
+                content: document.getElementById('loginContent').value
+            },
+            home: {
+                enabled: document.getElementById('homeEnabled').checked,
+                title: document.getElementById('homeTitle').value,
+                content: document.getElementById('homeContent').value
+            }
+        };
+
+        try {
+            const res = await fetch('/api/admin/config/notification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+            
+            if (res.ok) {
+                showToast('\u901A\u77E5\u914D\u7F6E\u5DF2\u4FDD\u5B58', 'success');
+                closeModal('notificationModal');
+            } else {
+                showToast('\u4FDD\u5B58\u5931\u8D25', 'error');
+            }
+        } catch (e) {
+            showToast('\u7F51\u7EDC\u9519\u8BEF', 'error');
+        }
+    }
+
+    // \u6253\u5F00\u6A21\u6001\u6846\u65F6\u5982\u679C\u662F\u901A\u77E5\u914D\u7F6E\uFF0C\u52A0\u8F7D\u6570\u636E
+    const originalOpenModal = window.openModal;
+    window.openModal = function(id) {
+        document.getElementById(id).classList.add('active');
+        if (id === 'notificationModal') {
+            loadNotificationConfig();
+        }
+    };
+    
     // ===== \u6A21\u6001\u6846\u5DE5\u5177 =====
     function closeModal(id) { document.getElementById(id).classList.remove('active'); }
     
@@ -13464,6 +11700,7 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
       document.getElementById('addUserModal').classList.add('active');
       document.getElementById('addUserForm').reset();
       await populateTokenSelect('addUserTokenSelect');
+      await populateMembershipSelect('addUserMembershipSelect');
     }
     
     async function populateTokenSelect(selectId) {
@@ -13501,6 +11738,7 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
         username: form.username.value,
         password: form.password.value,
         customNote: form.customNote.value || undefined,
+        membershipLevel: form.membershipLevel.value || undefined,
       };
       // \u4ECE\u4E0B\u62C9\u9009\u62E9\u7684 Token \u89E3\u6790
       var tokenVal = form.shareToken.value;
@@ -13571,20 +11809,130 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
       } catch (err) { alert('\u7F51\u7EDC\u9519\u8BEF'); }
     }
     
-    function editUser(username) {
-      const note = prompt('\u8BF7\u8F93\u5165\u5907\u6CE8:');
-      if (note === null) return;
+
+    
+    async function editUser(username) {
+      var user = allUsersData.find(u => u.username === username);
+      if (!user) return;
       
-      fetch('/api/admin/users/' + username, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customNote: note }),
-      }).then(r => r.json()).then(data => {
-        if (data.success) {
-          location.reload();
+      document.getElementById('editUserUsername').value = username;
+      document.getElementById('editUserUsernameDisplay').value = username;
+      document.getElementById('editUserForm').reset();
+      document.getElementById('editUserNote').value = user.customNote || '';
+      
+      await populateMembershipSelect('editUserMembershipSelect', user.membershipLevel);
+      
+      document.getElementById('editUserModal').classList.add('active');
+    }
+    
+    async function submitEditUser(e) {
+      e.preventDefault();
+      var form = e.target;
+      var username = form.username.value;
+      var data = {
+        password: form.password.value || undefined,
+        customNote: form.customNote.value || undefined,
+        membershipLevel: form.membershipLevel.value || undefined
+      };
+      
+      try {
+        var res = await fetch('/api/admin/users/' + username, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        var result = await res.json();
+        if (result.success) {
+          showToast('\u2705 \u66F4\u65B0\u6210\u529F');
+          closeModal('editUserModal');
+          setTimeout(function() { location.reload(); }, 800);
         } else {
-          alert('\u66F4\u65B0\u5931\u8D25: ' + data.error);
+          alert('\u66F4\u65B0\u5931\u8D25: ' + result.error);
         }
+      } catch (err) { alert('\u7F51\u7EDC\u9519\u8BEF'); }
+    }
+    
+    // \u4F1A\u5458\u7B49\u7EA7\u914D\u7F6E\u76F8\u5173
+    let membershipLevels = [];
+    
+    async function loadMembershipConfig() {
+      try {
+        const res = await fetch('/api/admin/config/membership');
+        const data = await res.json();
+        membershipLevels = data.levels || [];
+      } catch (err) {
+        console.error('\u52A0\u8F7D\u4F1A\u5458\u914D\u7F6E\u5931\u8D25', err);
+        membershipLevels = ['\u666E\u901A\u7528\u6237', 'VIP\u4F1A\u5458', '\u9AD8\u7EA7VIP'];
+      }
+    }
+    
+    async function showMembershipConfig() {
+      await loadMembershipConfig();
+      renderMembershipList();
+      document.getElementById('membershipConfigModal').classList.add('active');
+    }
+    
+    function renderMembershipList() {
+      const container = document.getElementById('membershipLevelsList');
+      if (membershipLevels.length === 0) {
+        container.innerHTML = '<div style="color:#999;text-align:center;">\u65E0</div>';
+        return;
+      }
+      // \u8D4B\u4E88\u5220\u9664\u529F\u80FD
+      container.innerHTML = membershipLevels.map((level, idx) => 
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid #eee;">' +
+          '<span>' + level + '</span>' +
+          '<button type="button" onclick="removeMembershipLevel(' + idx + ')" style="border:none;background:#e74c3c;color:white;padding:2px 8px;border-radius:4px;cursor:pointer;">\u5220\u9664</button>' +
+        '</div>'
+      ).join('');
+    }
+    
+    function addMembershipLevel() {
+      const input = document.getElementById('newMembershipLevel');
+      const val = input.value.trim();
+      if (!val) return;
+      if (membershipLevels.includes(val)) {
+        alert('\u7B49\u7EA7\u5DF2\u5B58\u5728');
+        return;
+      }
+      membershipLevels.push(val);
+      input.value = '';
+      renderMembershipList();
+    }
+    
+    function removeMembershipLevel(idx) {
+      membershipLevels.splice(idx, 1);
+      renderMembershipList();
+    }
+    
+    async function saveMembershipConfig() {
+      try {
+        const res = await fetch('/api/admin/config/membership', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ levels: membershipLevels }),
+        });
+        const result = await res.json();
+        if (result.success) {
+          showToast('\u2705 \u914D\u7F6E\u5DF2\u4FDD\u5B58');
+          closeModal('membershipConfigModal');
+        } else {
+          alert('\u4FDD\u5B58\u5931\u8D25: ' + result.error);
+        }
+      } catch (err) { alert('\u7F51\u7EDC\u9519\u8BEF'); }
+    }
+    
+    async function populateMembershipSelect(selectId, currentVal) {
+      if (membershipLevels.length === 0) await loadMembershipConfig();
+      
+      const sel = document.getElementById(selectId);
+      sel.innerHTML = '<option value="">\u9ED8\u8BA4 (\u666E\u901A\u7528\u6237)</option>';
+      membershipLevels.forEach(level => {
+        const opt = document.createElement('option');
+        opt.value = level;
+        opt.textContent = level;
+        if (currentVal && currentVal === level) opt.selected = true;
+        sel.appendChild(opt);
       });
     }
     
@@ -14077,7 +12425,7 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>\u7BA1\u7406\u540E\u53F0 - Sub-Store \u540C\u6B65\u5E73\u53F0</title>
+  <title>\u7BA1\u7406\u540E\u53F0 - Sub-Hub \u8BA2\u9605\u7BA1\u7406\u5E73\u53F0</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -14092,8 +12440,17 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      position: relative;
     }
     .header h1 { font-size: 20px; }
+    .header-title {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 20px;
+      font-weight: 700;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
     .header-actions { display: flex; gap: 10px; }
     .header-actions a, .header-actions button {
       background: rgba(255,255,255,0.2);
@@ -14324,6 +12681,7 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
   <div class="toast-container" id="toastContainer"></div>
   <div class="header">
     <h1>\u{1F527} \u7BA1\u7406\u540E\u53F0</h1>
+    <div class="header-title">Sub-Hub \u8BA2\u9605\u7BA1\u7406\u5E73\u53F0</div>
     <div class="header-actions">
       <a href="/">\u8FD4\u56DE\u4E3B\u9875</a>
       <button onclick="logout()">\u9000\u51FA\u767B\u5F55</button>
@@ -14337,17 +12695,19 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
         <span>\u26A1 \u5FEB\u901F\u64CD\u4F5C</span>
       </div>
       <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button class="btn" onclick="openModal('notificationModal')">\u{1F4E2} \u7F51\u7AD9\u901A\u77E5\u914D\u7F6E</button>
+        <button class="btn" onclick="showAddUserModal()">\u2795 \u6DFB\u52A0\u7528\u6237</button>
         <button class="btn btn-success" onclick="syncAllUsers()">\u{1F504} \u5168\u5C40\u540C\u6B65</button>
         <a href="/api/admin/export" class="btn" style="text-decoration: none;">\u{1F4E5} \u5BFC\u51FA CSV</a>
-        <button class="btn" onclick="showAddUserModal()">\u2795 \u6DFB\u52A0\u7528\u6237</button>
         <button class="btn" onclick="showSubstoreConfig()" style="background:linear-gradient(135deg,#f39c12 0%,#e67e22 100%);">\u{1F527} Sub-Store \u914D\u7F6E</button>
+        <button class="btn" onclick="showMembershipConfig()" style="background:linear-gradient(135deg,#9b59b6 0%,#8e44ad 100%);">\u{1F451} \u4F1A\u5458\u7B49\u7EA7\u914D\u7F6E</button>
       </div>
       <div id="syncResult" class="sync-result"></div>
     </div>
 
     
     <!-- \u81EA\u52A8\u540C\u6B65\u914D\u7F6E -->
-    <div class="card">
+    <div class="card" id="autoSyncConfigCard">
       <div class="card-title">
         <span>\u23F0 \u81EA\u52A8\u540C\u6B65\u914D\u7F6E</span>
       </div>
@@ -14435,6 +12795,60 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
     </div>
   </div>
   
+  <!-- \u901A\u77E5\u914D\u7F6E\u6A21\u6001\u6846 -->
+  <div class="modal" id="notificationModal">
+    <div class="modal-content" style="max-width: 600px;">
+      <h3 class="modal-title">\u{1F4E2} \u7F51\u7AD9\u901A\u77E5\u914D\u7F6E</h3>
+      <form id="notificationForm" onsubmit="saveNotificationConfig(event)">
+        <div style="display: flex; border-bottom: 1px solid #ddd; margin-bottom: 20px;">
+          <div class="tab-item active" onclick="switchTab(this, 'login-notify')" style="padding: 10px 20px; cursor: pointer; border-bottom: 2px solid #667eea; color: #667eea;">\u767B\u5F55\u9875\u901A\u77E5</div>
+          <div class="tab-item" onclick="switchTab(this, 'home-notify')" style="padding: 10px 20px; cursor: pointer; border-bottom: 2px solid transparent;">\u9996\u9875\u516C\u544A</div>
+        </div>
+
+        <div id="login-notify" class="tab-content">
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="loginEnabled"> \u542F\u7528\u767B\u5F55\u9875\u901A\u77E5
+            </label>
+          </div>
+          <div class="form-group">
+            <label>\u901A\u77E5\u7C7B\u578B</label>
+            <select id="loginType" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+              <option value="info">Info (\u84DD\u8272)</option>
+              <option value="warning">Warning (\u9EC4\u8272)</option>
+              <option value="error">Error (\u7EA2\u8272)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>\u901A\u77E5\u5185\u5BB9 (\u652F\u6301 HTML)</label>
+            <textarea id="loginContent" rows="4"></textarea>
+          </div>
+        </div>
+
+        <div id="home-notify" class="tab-content" style="display: none;">
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="homeEnabled"> \u542F\u7528\u9996\u9875\u516C\u544A
+            </label>
+          </div>
+          <div class="form-group">
+            <label>\u516C\u544A\u6807\u9898</label>
+            <input type="text" id="homeTitle" placeholder="\u4F8B\u5982\uFF1A\u7EF4\u62A4\u901A\u77E5">
+          </div>
+          <div class="form-group">
+            <label>\u516C\u544A\u5185\u5BB9 (\u652F\u6301 HTML\uFF0C\u53EF\u63D2\u5165\u56FE\u7247)</label>
+            <textarea id="homeContent" rows="6" placeholder="<p>\u5185\u5BB9...</p><img src='...'>"></textarea>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-danger" onclick="closeModal('notificationModal')">\u53D6\u6D88</button>
+          <button type="submit" class="btn">\u4FDD\u5B58\u914D\u7F6E</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- \u6DFB\u52A0\u7528\u6237\u6A21\u6001\u6846 -->
   <div class="modal" id="addUserModal">
     <div class="modal-content">
@@ -14456,6 +12870,12 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
           <small>\u4ECE\u5F85\u5206\u914D\u7684\u5206\u4EAB Token \u4E2D\u9009\u62E9\uFF0C\u521B\u5EFA\u7528\u6237\u540E\u5C06\u81EA\u52A8\u7ED1\u5B9A</small>
         </div>
         <div class="form-group">
+          <label>\u4F1A\u5458\u7B49\u7EA7</label>
+          <select name="membershipLevel" id="addUserMembershipSelect" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+            <option value="">\u9ED8\u8BA4 (\u666E\u901A\u7528\u6237)</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label>\u5907\u6CE8</label>
           <textarea name="customNote" rows="2" placeholder="\u53EF\u9009\u5907\u6CE8\u4FE1\u606F"></textarea>
         </div>
@@ -14464,6 +12884,62 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
           <button type="submit" class="btn btn-success">\u521B\u5EFA\u7528\u6237</button>
         </div>
       </form>
+    </div>
+  </div>
+  
+  <!-- \u7F16\u8F91\u7528\u6237\u6A21\u6001\u6846 -->
+  <div class="modal" id="editUserModal">
+    <div class="modal-content">
+      <div class="modal-title">\u270F\uFE0F \u7F16\u8F91\u7528\u6237</div>
+      <form id="editUserForm" onsubmit="submitEditUser(event)">
+        <input type="hidden" name="username" id="editUserUsername">
+        <div class="form-group">
+          <label>\u7528\u6237\u540D</label>
+          <input type="text" id="editUserUsernameDisplay" disabled style="background:#f5f5f5;">
+        </div>
+        <div class="form-group">
+          <label>\u65B0\u5BC6\u7801 (\u7559\u7A7A\u5219\u4E0D\u4FEE\u6539)</label>
+          <input type="password" name="password" placeholder="\u8F93\u5165\u65B0\u5BC6\u7801">
+        </div>
+        <div class="form-group">
+          <label>\u4F1A\u5458\u7B49\u7EA7</label>
+          <select name="membershipLevel" id="editUserMembershipSelect" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+            <option value="">\u9ED8\u8BA4 (\u666E\u901A\u7528\u6237)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>\u5907\u6CE8</label>
+          <textarea name="customNote" id="editUserNote" rows="2" placeholder="\u53EF\u9009\u5907\u6CE8\u4FE1\u606F"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-danger" onclick="closeModal('editUserModal')">\u53D6\u6D88</button>
+          <button type="submit" class="btn btn-success">\u4FDD\u5B58\u4FEE\u6539</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- \u4F1A\u5458\u7B49\u7EA7\u914D\u7F6E\u6A21\u6001\u6846 -->
+  <div class="modal" id="membershipConfigModal">
+    <div class="modal-content">
+      <div class="modal-title">\u{1F451} \u4F1A\u5458\u7B49\u7EA7\u914D\u7F6E</div>
+      <div class="form-group">
+        <label>\u73B0\u6709\u7B49\u7EA7 (\u53EF\u901A\u8FC7\u62D6\u62FD\u6392\u5E8F)</label>
+        <div id="membershipLevelsList" style="max-height:200px;overflow-y:auto;border:1px solid #ddd;border-radius:6px;padding:10px;margin-bottom:10px;">
+          <div style="color:#999;text-align:center;">\u52A0\u8F7D\u4E2D...</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>\u6DFB\u52A0\u65B0\u7B49\u7EA7</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="newMembershipLevel" placeholder="\u8F93\u5165\u7B49\u7EA7\u540D\u79F0" style="flex:1;">
+          <button type="button" class="btn btn-sm" onclick="addMembershipLevel()">\u6DFB\u52A0</button>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-danger" onclick="closeModal('membershipConfigModal')">\u5173\u95ED</button>
+        <button type="button" class="btn btn-success" onclick="saveMembershipConfig()">\u4FDD\u5B58\u914D\u7F6E</button>
+      </div>
     </div>
   </div>
   
@@ -14781,10 +13257,15 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
             subInfo = '<div class="subscription-info" style="color:#999;">\u672A\u7ED1\u5B9A\u8BA2\u9605\u94FE\u63A5</div>';
           }
           
+          
           var card = document.createElement('div');
           card.className = 'user-card';
           card.id = 'user-' + u.username;
-          card.innerHTML = '<div class="user-name">' + u.username + ' ' + (u.isAdmin ? '<span class="tag tag-admin">\u7BA1\u7406\u5458</span> ' : '') + subTag + '</div>' +
+          
+          var roleTag = u.membershipLevel ? '<span class="tag" style="background:#9b59b6;color:white;">' + u.membershipLevel + '</span>' : '';
+          if (u.isAdmin) roleTag += ' <span class="tag tag-admin">\u7BA1\u7406\u5458</span>';
+          
+          card.innerHTML = '<div class="user-name">' + u.username + ' ' + roleTag + ' ' + subTag + '</div>' +
             '<div class="user-info">\u521B\u5EFA\u4E8E: ' + new Date(u.createdAt).toLocaleDateString('zh-CN') + '</div>' +
             (u.lastLogin ? '<div class="user-info">\u6700\u540E\u767B\u5F55: ' + new Date(u.lastLogin).toLocaleString('zh-CN') + '</div>' : '') +
             (u.customNote ? '<div class="user-info">\u5907\u6CE8: ' + u.customNote + '</div>' : '') +
@@ -14845,6 +13326,84 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
       setTimeout(function() { location.reload(); }, 2000);
     }
     
+    // Tab \u5207\u6362\u903B\u8F91
+    function switchTab(el, targetId) {
+        document.querySelectorAll('.tab-item').forEach(t => {
+            t.style.borderBottomColor = 'transparent';
+            t.style.color = '#333';
+            t.classList.remove('active');
+        });
+        el.style.borderBottomColor = '#667eea';
+        el.style.color = '#667eea';
+        el.classList.add('active');
+
+        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+        document.getElementById(targetId).style.display = 'block';
+    }
+
+    // \u52A0\u8F7D\u901A\u77E5\u914D\u7F6E
+    async function loadNotificationConfig() {
+        try {
+            const res = await fetch('/api/admin/config/notification');
+            const config = await res.json();
+            
+            // Login config
+            document.getElementById('loginEnabled').checked = config.login?.enabled;
+            document.getElementById('loginType').value = config.login?.type || 'info';
+            document.getElementById('loginContent').value = config.login?.content || '';
+
+            // Home config
+            document.getElementById('homeEnabled').checked = config.home?.enabled;
+            document.getElementById('homeTitle').value = config.home?.title || '';
+            document.getElementById('homeContent').value = config.home?.content || '';
+        } catch (e) {
+            showToast('\u52A0\u8F7D\u901A\u77E5\u914D\u7F6E\u5931\u8D25', 'error');
+        }
+    }
+
+    // \u4FDD\u5B58\u901A\u77E5\u914D\u7F6E
+    async function saveNotificationConfig(e) {
+        e.preventDefault();
+        const config = {
+            login: {
+                enabled: document.getElementById('loginEnabled').checked,
+                type: document.getElementById('loginType').value,
+                content: document.getElementById('loginContent').value
+            },
+            home: {
+                enabled: document.getElementById('homeEnabled').checked,
+                title: document.getElementById('homeTitle').value,
+                content: document.getElementById('homeContent').value
+            }
+        };
+
+        try {
+            const res = await fetch('/api/admin/config/notification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+            
+            if (res.ok) {
+                showToast('\u901A\u77E5\u914D\u7F6E\u5DF2\u4FDD\u5B58', 'success');
+                closeModal('notificationModal');
+            } else {
+                showToast('\u4FDD\u5B58\u5931\u8D25', 'error');
+            }
+        } catch (e) {
+            showToast('\u7F51\u7EDC\u9519\u8BEF', 'error');
+        }
+    }
+
+    // \u6253\u5F00\u6A21\u6001\u6846\u65F6\u5982\u679C\u662F\u901A\u77E5\u914D\u7F6E\uFF0C\u52A0\u8F7D\u6570\u636E
+    const originalOpenModal = window.openModal;
+    window.openModal = function(id) {
+        document.getElementById(id).classList.add('active');
+        if (id === 'notificationModal') {
+            loadNotificationConfig();
+        }
+    };
+    
     // ===== \u6A21\u6001\u6846\u5DE5\u5177 =====
     function closeModal(id) { document.getElementById(id).classList.remove('active'); }
     
@@ -14853,6 +13412,7 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
       document.getElementById('addUserModal').classList.add('active');
       document.getElementById('addUserForm').reset();
       await populateTokenSelect('addUserTokenSelect');
+      await populateMembershipSelect('addUserMembershipSelect');
     }
     
     async function populateTokenSelect(selectId) {
@@ -14890,6 +13450,7 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
         username: form.username.value,
         password: form.password.value,
         customNote: form.customNote.value || undefined,
+        membershipLevel: form.membershipLevel.value || undefined,
       };
       // \u4ECE\u4E0B\u62C9\u9009\u62E9\u7684 Token \u89E3\u6790
       var tokenVal = form.shareToken.value;
@@ -14960,20 +13521,130 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
       } catch (err) { alert('\u7F51\u7EDC\u9519\u8BEF'); }
     }
     
-    function editUser(username) {
-      const note = prompt('\u8BF7\u8F93\u5165\u5907\u6CE8:');
-      if (note === null) return;
+
+    
+    async function editUser(username) {
+      var user = allUsersData.find(u => u.username === username);
+      if (!user) return;
       
-      fetch('/api/admin/users/' + username, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customNote: note }),
-      }).then(r => r.json()).then(data => {
-        if (data.success) {
-          location.reload();
+      document.getElementById('editUserUsername').value = username;
+      document.getElementById('editUserUsernameDisplay').value = username;
+      document.getElementById('editUserForm').reset();
+      document.getElementById('editUserNote').value = user.customNote || '';
+      
+      await populateMembershipSelect('editUserMembershipSelect', user.membershipLevel);
+      
+      document.getElementById('editUserModal').classList.add('active');
+    }
+    
+    async function submitEditUser(e) {
+      e.preventDefault();
+      var form = e.target;
+      var username = form.username.value;
+      var data = {
+        password: form.password.value || undefined,
+        customNote: form.customNote.value || undefined,
+        membershipLevel: form.membershipLevel.value || undefined
+      };
+      
+      try {
+        var res = await fetch('/api/admin/users/' + username, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        var result = await res.json();
+        if (result.success) {
+          showToast('\u2705 \u66F4\u65B0\u6210\u529F');
+          closeModal('editUserModal');
+          setTimeout(function() { location.reload(); }, 800);
         } else {
-          alert('\u66F4\u65B0\u5931\u8D25: ' + data.error);
+          alert('\u66F4\u65B0\u5931\u8D25: ' + result.error);
         }
+      } catch (err) { alert('\u7F51\u7EDC\u9519\u8BEF'); }
+    }
+    
+    // \u4F1A\u5458\u7B49\u7EA7\u914D\u7F6E\u76F8\u5173
+    let membershipLevels = [];
+    
+    async function loadMembershipConfig() {
+      try {
+        const res = await fetch('/api/admin/config/membership');
+        const data = await res.json();
+        membershipLevels = data.levels || [];
+      } catch (err) {
+        console.error('\u52A0\u8F7D\u4F1A\u5458\u914D\u7F6E\u5931\u8D25', err);
+        membershipLevels = ['\u666E\u901A\u7528\u6237', 'VIP\u4F1A\u5458', '\u9AD8\u7EA7VIP'];
+      }
+    }
+    
+    async function showMembershipConfig() {
+      await loadMembershipConfig();
+      renderMembershipList();
+      document.getElementById('membershipConfigModal').classList.add('active');
+    }
+    
+    function renderMembershipList() {
+      const container = document.getElementById('membershipLevelsList');
+      if (membershipLevels.length === 0) {
+        container.innerHTML = '<div style="color:#999;text-align:center;">\u65E0</div>';
+        return;
+      }
+      // \u8D4B\u4E88\u5220\u9664\u529F\u80FD
+      container.innerHTML = membershipLevels.map((level, idx) => 
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid #eee;">' +
+          '<span>' + level + '</span>' +
+          '<button type="button" onclick="removeMembershipLevel(' + idx + ')" style="border:none;background:#e74c3c;color:white;padding:2px 8px;border-radius:4px;cursor:pointer;">\u5220\u9664</button>' +
+        '</div>'
+      ).join('');
+    }
+    
+    function addMembershipLevel() {
+      const input = document.getElementById('newMembershipLevel');
+      const val = input.value.trim();
+      if (!val) return;
+      if (membershipLevels.includes(val)) {
+        alert('\u7B49\u7EA7\u5DF2\u5B58\u5728');
+        return;
+      }
+      membershipLevels.push(val);
+      input.value = '';
+      renderMembershipList();
+    }
+    
+    function removeMembershipLevel(idx) {
+      membershipLevels.splice(idx, 1);
+      renderMembershipList();
+    }
+    
+    async function saveMembershipConfig() {
+      try {
+        const res = await fetch('/api/admin/config/membership', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ levels: membershipLevels }),
+        });
+        const result = await res.json();
+        if (result.success) {
+          showToast('\u2705 \u914D\u7F6E\u5DF2\u4FDD\u5B58');
+          closeModal('membershipConfigModal');
+        } else {
+          alert('\u4FDD\u5B58\u5931\u8D25: ' + result.error);
+        }
+      } catch (err) { alert('\u7F51\u7EDC\u9519\u8BEF'); }
+    }
+    
+    async function populateMembershipSelect(selectId, currentVal) {
+      if (membershipLevels.length === 0) await loadMembershipConfig();
+      
+      const sel = document.getElementById(selectId);
+      sel.innerHTML = '<option value="">\u9ED8\u8BA4 (\u666E\u901A\u7528\u6237)</option>';
+      membershipLevels.forEach(level => {
+        const opt = document.createElement('option');
+        opt.value = level;
+        opt.textContent = level;
+        if (currentVal && currentVal === level) opt.selected = true;
+        sel.appendChild(opt);
       });
     }
     
@@ -15467,6 +14138,7 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
     createdAt: u.createdAt,
     lastLogin: u.lastLogin,
     customNote: u.customNote,
+    membershipLevel: u.membershipLevel,
     subscriptionConfig: u.subscriptionConfig || null,
     lastSyncResult: u.lastSyncResult || null
   })) || []).replace(/</g, "\\u003c")));
@@ -15491,50 +14163,131 @@ function getExpireClass(expireDate) {
   return "expire-normal";
 }
 
-// src/index.ts
+// src/app.ts
 var app = new Hono2();
 app.use("*", logger());
 app.use("*", cors());
+app.get("/api/health", (c) => {
+  return c.json({
+    status: "ok",
+    runtime: typeof EdgeRuntime !== "undefined" ? "edge" : "node",
+    db: !!c.env?.DATABASE_URL ? "connected" : "missing"
+  });
+});
 app.use("*", async (c, next) => {
-  const env = c.env;
-  let storage;
-  if (env.KV) {
-    storage = new KVStorage(env.KV);
-  } else if (env.DATABASE_URL) {
-    storage = new NeonStorage(env.DATABASE_URL);
-  } else {
-    storage = memoryStorage;
+  let env = {};
+  try {
+    env = { ...c.env || {} };
+    try {
+      if (typeof process !== "undefined" && process.env) {
+        env = { ...process.env, ...env };
+      }
+    } catch {
+    }
+    if (!env.DATABASE_URL && !env.KV) {
+      const requiredEnv = ["AUTH_SECRET", "ADMIN_USERNAME", "ADMIN_PASSWORD"];
+      const missingEnv = requiredEnv.filter((k) => !env[k]);
+      return c.html(`
+                <!DOCTYPE html>
+                <html lang="zh-CN">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>SubHub \u914D\u7F6E\u5411\u5BFC</title>
+                    <style>
+                        body { font-family: -apple-system, sans-serif; background: #f0f2f5; display: flex; justify-content: center; min-height: 100vh; padding-top: 50px; margin: 0; }
+                        .card { background: white; width: 90%; max-width: 600px; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); height: fit-content; }
+                        h1 { color: #1a202c; margin-top: 0; border-bottom: 2px solid #edf2f7; padding-bottom: 15px; }
+                        .alert { background: #fff5f5; border-left: 4px solid #f56565; padding: 15px; color: #c53030; margin: 20px 0; border-radius: 4px; }
+                        code { background: #edf2f7; padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #2d3748; }
+                        ul { color: #4a5568; line-height: 1.6; }
+                        .btn { display: block; width: 100%; background: #3182ce; color: white; text-align: center; padding: 12px; border-radius: 6px; text-decoration: none; font-weight: bold; margin-top: 25px; }
+                        .btn:hover { background: #2b6cb0; }
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <h1>\u{1F44B} \u5F00\u59CB\u4F7F\u7528 SubHub</h1>
+                        
+                        <div class="alert">
+                            <strong>\u26A0\uFE0F \u5C1A\u672A\u914D\u7F6E\u6570\u636E\u5E93</strong><br>
+                            \u5E94\u7528\u5DF2\u542F\u52A8\uFF0C\u4F46\u9700\u8981\u8FDE\u63A5\u6570\u636E\u5E93\u624D\u80FD\u5DE5\u4F5C\u3002
+                        </div>
+                        
+                        <p>\u8BF7\u5728\u90E8\u7F72\u5E73\u53F0\uFF08Vercel/Cloudflare\uFF09\u7684\u73AF\u5883\u53D8\u91CF\u8BBE\u7F6E\u4E2D\u6DFB\u52A0\uFF1A</p>
+                        
+                        <ul>
+                            <li><code>DATABASE_URL</code> (PostgreSQL \u8FDE\u63A5\u5B57\u7B26\u4E32)</li>
+                            ${missingEnv.map((k) => `<li><code>${k}</code></li>`).join("")}
+                        </ul>
+
+                        <p style="font-size: 13px; color: #718096; margin-top: 20px;">
+                            \u63D0\u793A\uFF1A\u5982\u679C\u60A8\u662F Vercel \u7528\u6237\uFF0C\u8BF7\u524D\u5F80 <strong>Settings -> Environment Variables</strong>\u3002
+                        </p>
+
+                        <a href="javascript:location.reload()" class="btn">\u5DF2\u914D\u7F6E\uFF1F\u5237\u65B0\u9875\u9762</a>
+                    </div>
+                </body>
+                </html>
+            `, 200);
+    }
+    if (!env.AUTH_SECRET) {
+      env.AUTH_SECRET = "default-insecure-secret-for-setup-only-change-me";
+      console.warn("[Warning] Using default insecure AUTH_SECRET");
+    }
+    if (!env.ADMIN_USERNAME) env.ADMIN_USERNAME = "admin";
+    if (!env.ADMIN_PASSWORD) env.ADMIN_PASSWORD = "admin";
+    let storage;
+    if (env.KV) {
+      storage = new KVStorage(env.KV);
+    } else if (env.DATABASE_URL) {
+      try {
+        storage = new NeonStorage(env.DATABASE_URL);
+      } catch (dbErr) {
+        console.error("[DB Init Error]", dbErr);
+        return c.html(`<h1>\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25</h1><p>\u63D0\u4F9B\u7684 DATABASE_URL \u65E0\u6548\u3002</p><pre>${dbErr.message}</pre>`, 200);
+      }
+    } else {
+      storage = memoryStorage;
+    }
+    c.set("storage", storage);
+    c.set("env", env);
+    await next();
+  } catch (e) {
+    console.error("[Fatal Error]", e);
+    return c.html(`
+            <div style="padding: 20px;">
+                <h1>System Recoverable Error</h1>
+                <pre>${e.message}</pre>
+                <p>Please check server logs.</p>
+            </div>
+        `, 200);
   }
-  c.set("storage", storage);
-  c.set("env", env);
-  await next();
 });
 app.route("/api", createApiRoutes());
 app.route("/api/admin", createAdminRoutes());
 app.route("/", createPageRoutes());
-app.notFound((c) => {
-  return c.json({ error: "\u9875\u9762\u4E0D\u5B58\u5728" }, 404);
-});
+app.notFound((c) => c.json({ error: "Not Found" }, 404));
 app.onError((err, c) => {
-  console.error("[Error]", err);
-  return c.json({ error: err.message || "\u670D\u52A1\u5668\u9519\u8BEF" }, 500);
+  console.error("[App Error]", err);
+  return c.json({ error: err.message }, 500);
 });
+var app_default = app;
+
+// src/index.ts
 async function handleScheduled(event, env, ctx) {
   console.log("[Cron] \u5B9A\u65F6\u4EFB\u52A1\u89E6\u53D1:", (/* @__PURE__ */ new Date()).toISOString());
-  const { KVStorage: KVStorage2 } = await Promise.resolve().then(() => (init_kv(), kv_exports));
-  const { memoryStorage: memoryStorage2 } = await Promise.resolve().then(() => (init_memory(), memory_exports));
-  const { syncAllUsers: syncAllUsers2, getAutoSyncConfig: getAutoSyncConfig2 } = await Promise.resolve().then(() => (init_scheduler(), scheduler_exports));
-  const storage = env.KV ? new KVStorage2(env.KV) : memoryStorage2;
-  const config = await getAutoSyncConfig2(storage);
+  const storage = env.KV ? new KVStorage(env.KV) : memoryStorage;
+  const config = await getAutoSyncConfig(storage);
   if (!config.enabled) {
     console.log("[Cron] \u81EA\u52A8\u540C\u6B65\u672A\u542F\u7528\uFF0C\u8DF3\u8FC7");
     return;
   }
-  const result = await syncAllUsers2(storage, env);
+  const result = await syncAllUsers(storage, env);
   console.log(`[Cron] \u540C\u6B65\u5B8C\u6210: \u603B\u8BA1 ${result.total}\uFF0C\u6210\u529F ${result.success}\uFF0C\u5931\u8D25 ${result.failed}`);
 }
 var index_default = {
-  fetch: app.fetch,
+  fetch: app_default.fetch,
   scheduled: handleScheduled
 };
 export {
