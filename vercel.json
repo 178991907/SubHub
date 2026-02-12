@@ -6,8 +6,8 @@
     "installCommand": "npm install",
     "routes": [
         {
-            "src": "/api/cron/(.*)",
-            "dest": "/api/cron/$1"
+            "src": "/api/(.*)",
+            "dest": "/api/$1"
         },
         {
             "src": "/(.*)",
@@ -17,15 +17,6 @@
     "functions": {
         "api/index.ts": {
             "runtime": "edge"
-        },
-        "api/cron/sync.ts": {
-            "maxDuration": 60
         }
-    },
-    "crons": [
-        {
-            "path": "/api/cron/sync",
-            "schedule": "0 0 * * *"
-        }
-    ]
+    }
 }
