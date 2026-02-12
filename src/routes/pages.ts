@@ -8,7 +8,7 @@ import { STORAGE_KEYS } from '../storage.js';
 import { verifyToken } from '../auth.js';
 import type { AuthEnv } from '../auth.js';
 import type { SyncEnv } from '../sync.js';
-// import { generateQRCodeSVG } from '../utils/qrcode.js';
+
 
 type Env = AuthEnv & SyncEnv & { storage: Storage };
 
@@ -74,17 +74,9 @@ export function createPageRoutes() {
       totalRemainGB: userSyncResult.totalRemainGB,
     } as SyncResult : globalSyncResult;
 
-    // 临时禁用二维码生成，排查 500 错误
-    let qrcodeSvg = '<div style="padding:20px;text-align:center;color:#666;border:1px dashed #ccc;border-radius:8px;">二维码功能维护中...</div>';
-    /* 
-    try {
-      qrcodeSvg = await generateQRCodeSVG(subscriptionUrl);
-    } catch {
-      qrcodeSvg = '<p>\u4E8C\u7EF4\u7801\u751F\u6210\u5931\u8D25</p>';
-    } 
-    */
 
-    return c.html(renderHomePage(payload.sub, payload.isAdmin, syncResult, qrcodeSvg, subscriptionUrl, env, collectionName));
+
+    return c.html(renderHomePage(payload.sub, payload.isAdmin, syncResult, subscriptionUrl, env, collectionName));
   });
 
   /**
@@ -251,7 +243,6 @@ function renderHomePage(
   username: string,
   isAdmin: boolean,
   syncResult: SyncResult | null,
-  qrcodeSvg: string,
   subscriptionUrl: string,
   env: Env,
   collectionName: string
@@ -270,6 +261,7 @@ function renderHomePage(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>订阅中心 - Sub-Store 同步平台</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -351,11 +343,13 @@ function renderHomePage(
       padding: 15px;
       border-radius: 12px;
       border: 2px solid #e1e5eb;
+      min-height: 230px; /* 预留高度防止抖动 */
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
-    .qrcode-wrapper svg {
+    .qrcode-wrapper canvas {
       display: block;
-      width: 200px;
-      height: 200px;
     }
     .url-display {
       background: #f8f9fa;
@@ -515,7 +509,9 @@ function renderHomePage(
     <div class="card">
       <h2 class="card-title">📱 订阅二维码</h2>
       <div class="qrcode-section">
-        <div class="qrcode-wrapper">${raw(qrcodeSvg)}</div>
+        <div class="qrcode-wrapper">
+          <canvas id="qrcode-canvas"></canvas>
+        </div>
         <div class="url-display">${subscriptionUrl}</div>
         <button class="copy-btn" id="copyBtn" onclick="copySubscriptionUrl()">📋 复制订阅链接</button>
       </div>
@@ -545,6 +541,21 @@ function renderHomePage(
   <script>
     const SUBSCRIPTION_URL = '${subscriptionUrl}';
     
+    // 生成二维码
+    window.onload = function() {
+      const canvas = document.getElementById('qrcode-canvas');
+      QRCode.toCanvas(canvas, SUBSCRIPTION_URL, { 
+        width: 200, 
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff'
+        }
+      }, function (error) {
+        if (error) console.error(error);
+      });
+    };
+    
     async function logout() {
       await fetch('/api/auth/logout', { method: 'POST' });
       window.location.href = '/login';
@@ -561,6 +572,7 @@ function renderHomePage(
         }, 2000);
       });
     }
+    
     
     async function changePassword(e) {
       e.preventDefault();
