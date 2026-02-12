@@ -104,7 +104,7 @@ export async function syncSubscription(
         const validLines: string[] = [];
         let invalidCount = 0;
 
-        const protocols = { vless: 0, trojan: 0, other: 0 };
+        const protocols = { vless: 0, trojan: 0, shadowsocks: 0, vmess: 0, other: 0 };
         const expireDates: string[] = [];
         let totalTrafficGB = 0;
         let hasTrafficInfo = false;

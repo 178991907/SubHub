@@ -89,9 +89,11 @@ export function isValidProxyUrl(line: string): boolean {
 /**
  * 获取代理协议类型
  */
-export function getProtocolType(line: string): 'vless' | 'trojan' | 'other' {
+export function getProtocolType(line: string): 'vless' | 'trojan' | 'shadowsocks' | 'vmess' | 'other' {
     const trimmed = line.trim().toLowerCase();
     if (trimmed.startsWith('vless://')) return 'vless';
     if (trimmed.startsWith('trojan://')) return 'trojan';
+    if (trimmed.startsWith('ss://') || trimmed.startsWith('ssr://')) return 'shadowsocks';
+    if (trimmed.startsWith('vmess://')) return 'vmess';
     return 'other';
 }

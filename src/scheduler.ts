@@ -3,6 +3,7 @@
  */
 import type { Storage, User, AutoSyncConfig } from './storage.js';
 import { STORAGE_KEYS } from './storage.js';
+import { getProtocolType } from './utils/parse-node.js';
 import type { SyncEnv } from './sync.js';
 
 // 同步单个用户的订阅
@@ -68,8 +69,13 @@ export async function syncUserSubscription(
         // 解析到期日期（从节点名中提取）
         let earliestExpire: string | null = null;
         let totalRemainGB: number | null = null;
+        const protocols = { vless: 0, trojan: 0, shadowsocks: 0, vmess: 0, other: 0 };
 
         for (const line of validLines) {
+            // 统计协议
+            const type = getProtocolType(line);
+            protocols[type]++;
+
             // 尝试从节点名中提取到期日期
             const match = line.match(/剩余\s*(\d+)\s*天/);
             if (match) {
@@ -89,6 +95,7 @@ export async function syncUserSubscription(
             nodeCount: validLines.length,
             earliestExpire,
             totalRemainGB,
+            protocols, // 保存协议统计
         };
 
         // 保存用户数据

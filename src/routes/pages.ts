@@ -72,6 +72,7 @@ export function createPageRoutes() {
       nodeCount: userSyncResult.nodeCount,
       earliestExpire: userSyncResult.earliestExpire,
       totalRemainGB: userSyncResult.totalRemainGB,
+      protocols: userSyncResult.protocols || globalSyncResult?.protocols,
     } as SyncResult : globalSyncResult;
 
 
@@ -494,6 +495,14 @@ function renderHomePage(
           <div class="stat-label">Trojan</div>
         </div>
         <div class="stat-item">
+          <div class="stat-value">${syncResult?.protocols?.shadowsocks || 0}</div>
+          <div class="stat-label">Shadowsocks</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${syncResult?.protocols?.vmess || 0}</div>
+          <div class="stat-label">VMess</div>
+        </div>
+        <div class="stat-item">
           <div class="stat-value">${syncResult?.totalRemainGB ? `${syncResult.totalRemainGB}GB` : 'N/A'}</div>
           <div class="stat-label">剩余流量</div>
         </div>
@@ -512,6 +521,8 @@ function renderHomePage(
         <div class="qrcode-wrapper">
           <canvas id="qrcode-canvas"></canvas>
         </div>
+        <!-- 安全传递数据：使用 hidden input 避免 JS 语法错误 -->
+        <input type="hidden" id="sub-url-data" value="${subscriptionUrl}">
         <div class="url-display">${subscriptionUrl}</div>
         <button class="copy-btn" id="copyBtn" onclick="copySubscriptionUrl()">📋 复制订阅链接</button>
       </div>
@@ -539,13 +550,16 @@ function renderHomePage(
   </div>
   
   <script>
-    const SUBSCRIPTION_URL = ${JSON.stringify(subscriptionUrl)};
+    // 从 DOM 读取 URL，避免模板插值导致的 SyntaxError
+    const SUBSCRIPTION_URL = document.getElementById('sub-url-data').value;
     
     // 生成二维码 (防抖 + 确保 DOM 加载)
     function generateQRCode() {
       const canvas = document.getElementById('qrcode-canvas');
       if (!canvas || !window.QRCode) {
-        console.warn('Canvas or QRCode library not ready, retrying...');
+        if (typeof window.QRCode === 'undefined') {
+            console.warn('QRCode library loading...');
+        }
         setTimeout(generateQRCode, 500);
         return;
       }
@@ -561,15 +575,11 @@ function renderHomePage(
           errorCorrectionLevel: 'M'
         }, function (error) {
           if (error) {
-            console.error('[QRCode Error]', error);
-            canvas.style.display = 'none';
-            canvas.parentNode.innerHTML = '<div style="color:red;font-size:12px;text-align:center;">二维码生成失败</div>';
-          } else {
-            console.log('[QRCode] Generated successfully');
+             // 忽略
           }
         });
       } catch (e) {
-        console.error('[QRCode Exception]', e);
+         // 忽略
       }
     }
 

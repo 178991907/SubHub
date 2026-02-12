@@ -20,6 +20,8 @@ export interface SyncResult {
     protocols: {                // 协议统计
         vless: number;
         trojan: number;
+        shadowsocks: number;
+        vmess: number;
         other: number;
     };
 }
@@ -42,6 +44,13 @@ export interface User {
         nodeCount: number;         // 节点数
         earliestExpire: string | null;  // 最早到期
         totalRemainGB: number | null;   // 剩余流量
+        protocols?: {                   // 协议统计 (可选，兼容旧数据)
+            vless: number;
+            trojan: number;
+            shadowsocks: number;
+            vmess: number;
+            other: number;
+        };
     };
 }
 
