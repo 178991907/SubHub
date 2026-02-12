@@ -1057,7 +1057,6 @@ function renderAdminPage(
       <div style="display: flex; gap: 10px; flex-wrap: wrap;">
         <button class="btn" onclick="openModal('notificationModal')">📢 网站通知配置</button>
         <button class="btn" onclick="showAddUserModal()">➕ 添加用户</button>
-        <button class="btn" onclick="document.getElementById('autoSyncConfigCard').scrollIntoView({behavior: 'smooth'})">⚙️ 自动同步配置</button>
         <button class="btn btn-success" onclick="syncAllUsers()">🔄 全局同步</button>
         <a href="/api/admin/export" class="btn" style="text-decoration: none;">📥 导出 CSV</a>
         <button class="btn" onclick="showSubstoreConfig()" style="background:linear-gradient(135deg,#f39c12 0%,#e67e22 100%);">🔧 Sub-Store 配置</button>
