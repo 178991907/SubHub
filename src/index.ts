@@ -31,7 +31,7 @@ interface KVNamespace {
 }
 
 // 创建 Hono 应用
-const app = new Hono<{
+export const app = new Hono<{
     Bindings: Env;
     Variables: {
         storage: Storage;

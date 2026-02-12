@@ -1,7 +1,7 @@
 /**
  * Vercel Edge Runtime 入口
  */
-import app from '../src/index';
+import { app } from '../src/index';
 import { handle } from 'hono/vercel';
 
 // Vercel Edge 配置
