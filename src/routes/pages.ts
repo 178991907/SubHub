@@ -113,6 +113,9 @@ export function createPageRoutes() {
       if (user) users.push(user);
     }
 
+    // 按创建时间排序 (管理员已经在 renderAdminPage 参数中独立传入，这里只处理普通用户)
+    users.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
     // 获取同步数据
     const syncResult = await storage.get<SyncResult>(STORAGE_KEYS.SYNC_RESULT);
 
@@ -1592,16 +1595,23 @@ function renderAdminPage(
   
   <!-- 不可见的数据容器 -->
   <script id="server-data-users" type="application/json">
-    ${raw(JSON.stringify(users.map(u => ({
-    username: u.username,
-    isAdmin: u.isAdmin,
-    createdAt: u.createdAt,
-    lastLogin: u.lastLogin,
-    customNote: u.customNote,
-    membershipLevel: (u as any).membershipLevel,
-    subscriptionConfig: (u as any).subscriptionConfig || null,
-    lastSyncResult: (u as any).lastSyncResult || null,
-  })) || []).replace(/</g, '\\u003c'))}
+    ${raw(JSON.stringify([
+    {
+      username: adminUsername,
+      isAdmin: true,
+      createdAt: '系统管理员',
+      membershipLevel: 'VIP用户'
+    },
+    ...users.map(u => ({
+      username: u.username,
+      isAdmin: u.isAdmin,
+      createdAt: u.createdAt,
+      lastLogin: u.lastLogin,
+      customNote: u.customNote,
+      membershipLevel: (u as any).membershipLevel,
+      subscriptionConfig: (u as any).subscriptionConfig || null,
+      lastSyncResult: (u as any).lastSyncResult || null,
+    }))]).replace(/</g, '\\u003c'))}
   </script>
   
   <script>
@@ -1632,6 +1642,8 @@ function renderAdminPage(
     
     // 页面加载
     document.addEventListener('DOMContentLoaded', function() {
+      // 记录原始序号
+      allUsersData.forEach((u, i) => { u._index = i + 1; });
       loadAutoSyncConfig();
       // 恢复视图模式按钮状态
       if (currentUserView === 'list') {
@@ -1762,10 +1774,9 @@ function renderAdminPage(
         return 0;
       });
       
-      document.getElementById('userCountLabel').textContent = filtered.length + 1;
+      document.getElementById('userCountLabel').textContent = filtered.length;
       
       var grid = document.getElementById('usersGrid');
-      var adminCard = grid.querySelector('.admin-card');
       grid.innerHTML = '';
       
       if (currentUserView === 'list') {
@@ -1774,6 +1785,7 @@ function renderAdminPage(
         grid.className = '';
         var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
           '<thead><tr style="background:#f8f9fa;text-align:left;">' +
+          '<th style="padding:10px 8px;border-bottom:2px solid #ddd;width:40px;">#</th>' +
           '<th style="padding:10px 8px;border-bottom:2px solid #ddd;">用户名</th>' +
           '<th style="padding:10px 8px;border-bottom:2px solid #ddd;">组合</th>' +
           '<th style="padding:10px 8px;border-bottom:2px solid #ddd;">Token</th>' +
@@ -1788,20 +1800,22 @@ function renderAdminPage(
           if (u.subscriptionConfig) {
             subTag = u.lastSyncResult ? getExpireTagHtml(u.lastSyncResult.earliestExpire) : '<span class="tag tag-warning">待同步</span>';
           } else {
-            subTag = '<span class="tag tag-no-sub">未绑定</span>';
+            subTag = u.isAdmin ? '<span class="tag tag-admin">系统管理</span>' : '<span class="tag tag-no-sub">未绑定</span>';
           }
-          html += '<tr style="border-bottom:1px solid #eee;">' +
-            '<td style="padding:8px;font-weight:500;">' + u.username + (u.customNote ? ' <span style="color:#999;font-size:11px;">(' + u.customNote + ')</span>' : '') + '</td>' +
+          html += '<tr style="border-bottom:1px solid #eee;' + (u.isAdmin ? 'background:#fffafa;' : '') + '">' +
+            '<td style="padding:8px;color:#999;font-weight:bold;">' + u._index + '</td>' +
+            '<td style="padding:8px;font-weight:500;">' + u.username + (u.isAdmin ? ' <span class="tag tag-admin" style="font-size:10px;padding:1px 4px;">管理员</span>' : '') + (u.customNote ? ' <span style="color:#999;font-size:11px;">(' + u.customNote + ')</span>' : '') + '</td>' +
             '<td style="padding:8px;">' + (u.subscriptionConfig ? u.subscriptionConfig.collectionName : '-') + '</td>' +
             '<td style="padding:8px;"><code style="font-size:11px;background:#f0f0f0;padding:1px 4px;border-radius:3px;">' + (u.subscriptionConfig ? u.subscriptionConfig.token : '-') + '</code></td>' +
             '<td style="padding:8px;">' + (u.lastSyncResult ? u.lastSyncResult.nodeCount + ' 个' : '-') + '</td>' +
             '<td style="padding:8px;">' + subTag + '</td>' +
-            '<td style="padding:8px;font-size:12px;color:#666;">' + (u.lastSyncResult ? new Date(u.lastSyncResult.lastSync).toLocaleString('zh-CN') : '-') + '</td>' +
+            '<td style="padding:8px;font-size:12px;color:#666;">' + (u.lastSyncResult ? new Date(u.lastSyncResult.lastSync).toLocaleString('zh-CN') : (u.isAdmin ? '内置账户' : '-')) + '</td>' +
             '<td style="padding:8px;white-space:nowrap;">' +
+              (u.isAdmin ? '-' :
               '<button onclick="editUser(\\\'' + u.username + '\\\')" style="border:1px solid #ddd;background:white;border-radius:4px;cursor:pointer;padding:3px 8px;font-size:11px;margin-right:4px;">✏️</button>' +
               '<button onclick="bindSubscription(\\\'' + u.username + '\\\')" style="border:1px solid #ddd;background:white;border-radius:4px;cursor:pointer;padding:3px 8px;font-size:11px;margin-right:4px;">🔗</button>' +
               '<button onclick="syncUser(\\\'' + u.username + '\\\')"' + (!u.subscriptionConfig ? ' disabled' : '') + ' style="border:1px solid #ddd;background:white;border-radius:4px;cursor:pointer;padding:3px 8px;font-size:11px;margin-right:4px;">🔄</button>' +
-              '<button onclick="deleteUser(\\\'' + u.username + '\\\')" style="border:1px solid #ddd;background:white;border-radius:4px;cursor:pointer;padding:3px 8px;font-size:11px;">🗑️</button>' +
+              '<button onclick="deleteUser(\\\'' + u.username + '\\\')" style="border:1px solid #ddd;background:white;border-radius:4px;cursor:pointer;padding:3px 8px;font-size:11px;">🗑️</button>') +
             '</td>' +
             '</tr>';
         });
@@ -1811,14 +1825,13 @@ function renderAdminPage(
         // 卡片视图
         grid.style.display = 'grid';
         grid.className = 'users-grid';
-        if (adminCard) grid.appendChild(adminCard);
         
         filtered.forEach(function(u) {
           var subTag = '';
           if (u.subscriptionConfig) {
             subTag = u.lastSyncResult ? getExpireTagHtml(u.lastSyncResult.earliestExpire) : '<span class="tag tag-warning">待同步</span>';
           } else {
-            subTag = '<span class="tag tag-no-sub">未绑定</span>';
+            subTag = u.isAdmin ? '<span class="tag tag-admin">系统管理</span>' : '<span class="tag tag-no-sub">未绑定</span>';
           }
           
           var subInfo = '';
@@ -1832,27 +1845,30 @@ function renderAdminPage(
                 : '<div style="color:#f39c12;">尚未同步</div>') +
               '</div>';
           } else {
-            subInfo = '<div class="subscription-info" style="color:#999;">未绑定订阅链接</div>';
+            subInfo = u.isAdmin ? '<div class="subscription-info" style="color:#666;">管理所有用户订阅分发</div>' : '<div class="subscription-info" style="color:#999;">未绑定订阅链接</div>';
           }
           
           
           var card = document.createElement('div');
-          card.className = 'user-card';
+          card.className = 'user-card' + (u.isAdmin ? ' admin-card' : '');
           card.id = 'user-' + u.username;
           
           var roleTag = u.membershipLevel ? '<span class="tag" style="background:#9b59b6;color:white;">' + u.membershipLevel + '</span>' : '';
           if (u.isAdmin) roleTag += ' <span class="tag tag-admin">管理员</span>';
           
-          card.innerHTML = '<div class="user-name">' + u.username + ' ' + roleTag + ' ' + subTag + '</div>' +
-            '<div class="user-info">创建于: ' + new Date(u.createdAt).toLocaleDateString('zh-CN') + '</div>' +
+          card.innerHTML = '<div style="position:absolute;top:10px;right:10px;font-size:16px;font-weight:bold;color:rgba(0,0,0,0.05);">#' + u._index + '</div>' +
+            '<div class="user-name">' + u.username + ' ' + roleTag + ' ' + subTag + '</div>' +
+            '<div class="user-info">创建于: ' + (u.isAdmin ? '系统初始化' : new Date(u.createdAt).toLocaleDateString('zh-CN')) + '</div>' +
             (u.lastLogin ? '<div class="user-info">最后登录: ' + new Date(u.lastLogin).toLocaleString('zh-CN') + '</div>' : '') +
             (u.customNote ? '<div class="user-info">备注: ' + u.customNote + '</div>' : '') +
             subInfo +
             '<div class="actions">' +
+              (u.isAdmin ? 
+              '<p style="font-size:11px;color:#999;text-align:center;width:100%;margin-top:5px;">管理员账户不可在线编辑</p>' :
               '<button onclick="editUser(\\\'' + u.username + '\\\')">✏️ 编辑</button>' +
               '<button onclick="bindSubscription(\\\'' + u.username + '\\\')">🔗 绑定</button>' +
               '<button onclick="syncUser(\\\'' + u.username + '\\\')"' + (!u.subscriptionConfig ? ' disabled' : '') + '>🔄 同步</button>' +
-              '<button onclick="deleteUser(\\\'' + u.username + '\\\')">🗑️ 删除</button>' +
+              '<button onclick="deleteUser(\\\'' + u.username + '\\\')">🗑️ 删除</button>') +
             '</div>';
           grid.appendChild(card);
         });

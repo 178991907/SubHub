@@ -86,6 +86,13 @@ export function createAdminRoutes() {
             }
         }
 
+        // 按创建时间排序 (管理员在最前，其余按时间升序)
+        users.sort((a, b) => {
+            if (a.createdAt === '系统管理员') return -1;
+            if (b.createdAt === '系统管理员') return 1;
+            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        });
+
         return c.json({ users });
     });
 
