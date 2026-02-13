@@ -9494,6 +9494,11 @@ function createAdminRoutes() {
         });
       }
     }
+    users.sort((a2, b2) => {
+      if (a2.createdAt === "\u7CFB\u7EDF\u7BA1\u7406\u5458") return -1;
+      if (b2.createdAt === "\u7CFB\u7EDF\u7BA1\u7406\u5458") return 1;
+      return new Date(a2.createdAt).getTime() - new Date(b2.createdAt).getTime();
+    });
     return c.json({ users });
   });
   admin.post("/users", async (c) => {
@@ -9953,6 +9958,7 @@ function createPageRoutes() {
       const user = await storage.get(key);
       if (user) users.push(user);
     }
+    users.sort((a2, b2) => new Date(a2.createdAt).getTime() - new Date(b2.createdAt).getTime());
     const syncResult = await storage.get(STORAGE_KEYS.SYNC_RESULT);
     return c.html(renderAdminPage(env.ADMIN_USERNAME, users, syncResult, env.SYNC_SECRET));
   });
@@ -11342,6 +11348,8 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
     
     // \u9875\u9762\u52A0\u8F7D
     document.addEventListener('DOMContentLoaded', function() {
+      // \u8BB0\u5F55\u539F\u59CB\u5E8F\u53F7
+      allUsersData.forEach((u, i) => { u._index = i + 1; });
       loadAutoSyncConfig();
       // \u6062\u590D\u89C6\u56FE\u6A21\u5F0F\u6309\u94AE\u72B6\u6001
       if (currentUserView === 'list') {
@@ -11472,10 +11480,9 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
         return 0;
       });
       
-      document.getElementById('userCountLabel').textContent = filtered.length + 1;
+      document.getElementById('userCountLabel').textContent = filtered.length;
       
       var grid = document.getElementById('usersGrid');
-      var adminCard = grid.querySelector('.admin-card');
       grid.innerHTML = '';
       
       if (currentUserView === 'list') {
@@ -11484,6 +11491,7 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
         grid.className = '';
         var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
           '<thead><tr style="background:#f8f9fa;text-align:left;">' +
+          '<th style="padding:10px 8px;border-bottom:2px solid #ddd;width:40px;">#</th>' +
           '<th style="padding:10px 8px;border-bottom:2px solid #ddd;">\u7528\u6237\u540D</th>' +
           '<th style="padding:10px 8px;border-bottom:2px solid #ddd;">\u7EC4\u5408</th>' +
           '<th style="padding:10px 8px;border-bottom:2px solid #ddd;">Token</th>' +
@@ -11498,20 +11506,22 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
           if (u.subscriptionConfig) {
             subTag = u.lastSyncResult ? getExpireTagHtml(u.lastSyncResult.earliestExpire) : '<span class="tag tag-warning">\u5F85\u540C\u6B65</span>';
           } else {
-            subTag = '<span class="tag tag-no-sub">\u672A\u7ED1\u5B9A</span>';
+            subTag = u.isAdmin ? '<span class="tag tag-admin">\u7CFB\u7EDF\u7BA1\u7406</span>' : '<span class="tag tag-no-sub">\u672A\u7ED1\u5B9A</span>';
           }
-          html += '<tr style="border-bottom:1px solid #eee;">' +
-            '<td style="padding:8px;font-weight:500;">' + u.username + (u.customNote ? ' <span style="color:#999;font-size:11px;">(' + u.customNote + ')</span>' : '') + '</td>' +
+          html += '<tr style="border-bottom:1px solid #eee;' + (u.isAdmin ? 'background:#fffafa;' : '') + '">' +
+            '<td style="padding:8px;color:#667eea;font-weight:bold;font-family:monospace;font-size:14px;">#' + u._index + '</td>' +
+            '<td style="padding:8px;font-weight:500;">' + u.username + (u.isAdmin ? ' <span class="tag tag-admin" style="font-size:10px;padding:1px 4px;">\u7BA1\u7406\u5458</span>' : '') + (u.customNote ? ' <span style="color:#999;font-size:11px;">(' + u.customNote + ')</span>' : '') + '</td>' +
             '<td style="padding:8px;">' + (u.subscriptionConfig ? u.subscriptionConfig.collectionName : '-') + '</td>' +
             '<td style="padding:8px;"><code style="font-size:11px;background:#f0f0f0;padding:1px 4px;border-radius:3px;">' + (u.subscriptionConfig ? u.subscriptionConfig.token : '-') + '</code></td>' +
             '<td style="padding:8px;">' + (u.lastSyncResult ? u.lastSyncResult.nodeCount + ' \u4E2A' : '-') + '</td>' +
             '<td style="padding:8px;">' + subTag + '</td>' +
-            '<td style="padding:8px;font-size:12px;color:#666;">' + (u.lastSyncResult ? new Date(u.lastSyncResult.lastSync).toLocaleString('zh-CN') : '-') + '</td>' +
+            '<td style="padding:8px;font-size:12px;color:#666;">' + (u.lastSyncResult ? new Date(u.lastSyncResult.lastSync).toLocaleString('zh-CN') : (u.isAdmin ? '\u5185\u7F6E\u8D26\u6237' : '-')) + '</td>' +
             '<td style="padding:8px;white-space:nowrap;">' +
+              (u.isAdmin ? '-' :
               '<button onclick="editUser(\\'' + u.username + '\\')" style="border:1px solid #ddd;background:white;border-radius:4px;cursor:pointer;padding:3px 8px;font-size:11px;margin-right:4px;">\u270F\uFE0F</button>' +
               '<button onclick="bindSubscription(\\'' + u.username + '\\')" style="border:1px solid #ddd;background:white;border-radius:4px;cursor:pointer;padding:3px 8px;font-size:11px;margin-right:4px;">\u{1F517}</button>' +
               '<button onclick="syncUser(\\'' + u.username + '\\')"' + (!u.subscriptionConfig ? ' disabled' : '') + ' style="border:1px solid #ddd;background:white;border-radius:4px;cursor:pointer;padding:3px 8px;font-size:11px;margin-right:4px;">\u{1F504}</button>' +
-              '<button onclick="deleteUser(\\'' + u.username + '\\')" style="border:1px solid #ddd;background:white;border-radius:4px;cursor:pointer;padding:3px 8px;font-size:11px;">\u{1F5D1}\uFE0F</button>' +
+              '<button onclick="deleteUser(\\'' + u.username + '\\')" style="border:1px solid #ddd;background:white;border-radius:4px;cursor:pointer;padding:3px 8px;font-size:11px;">\u{1F5D1}\uFE0F</button>') +
             '</td>' +
             '</tr>';
         });
@@ -11521,14 +11531,13 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
         // \u5361\u7247\u89C6\u56FE
         grid.style.display = 'grid';
         grid.className = 'users-grid';
-        if (adminCard) grid.appendChild(adminCard);
         
         filtered.forEach(function(u) {
           var subTag = '';
           if (u.subscriptionConfig) {
             subTag = u.lastSyncResult ? getExpireTagHtml(u.lastSyncResult.earliestExpire) : '<span class="tag tag-warning">\u5F85\u540C\u6B65</span>';
           } else {
-            subTag = '<span class="tag tag-no-sub">\u672A\u7ED1\u5B9A</span>';
+            subTag = u.isAdmin ? '<span class="tag tag-admin">\u7CFB\u7EDF\u7BA1\u7406</span>' : '<span class="tag tag-no-sub">\u672A\u7ED1\u5B9A</span>';
           }
           
           var subInfo = '';
@@ -11542,27 +11551,30 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
                 : '<div style="color:#f39c12;">\u5C1A\u672A\u540C\u6B65</div>') +
               '</div>';
           } else {
-            subInfo = '<div class="subscription-info" style="color:#999;">\u672A\u7ED1\u5B9A\u8BA2\u9605\u94FE\u63A5</div>';
+            subInfo = u.isAdmin ? '<div class="subscription-info" style="color:#666;">\u7BA1\u7406\u6240\u6709\u7528\u6237\u8BA2\u9605\u5206\u53D1</div>' : '<div class="subscription-info" style="color:#999;">\u672A\u7ED1\u5B9A\u8BA2\u9605\u94FE\u63A5</div>';
           }
           
           
           var card = document.createElement('div');
-          card.className = 'user-card';
+          card.className = 'user-card' + (u.isAdmin ? ' admin-card' : '');
           card.id = 'user-' + u.username;
           
           var roleTag = u.membershipLevel ? '<span class="tag" style="background:#9b59b6;color:white;">' + u.membershipLevel + '</span>' : '';
           if (u.isAdmin) roleTag += ' <span class="tag tag-admin">\u7BA1\u7406\u5458</span>';
           
-          card.innerHTML = '<div class="user-name">' + u.username + ' ' + roleTag + ' ' + subTag + '</div>' +
-            '<div class="user-info">\u521B\u5EFA\u4E8E: ' + new Date(u.createdAt).toLocaleDateString('zh-CN') + '</div>' +
+          card.innerHTML = '<div style="position:absolute;top:12px;right:12px;font-size:11px;font-weight:800;color:#fff;background:#667eea;padding:2px 8px;border-radius:12px;box-shadow:0 2px 4px rgba(102,126,234,0.3);font-family:monospace;">#' + u._index + '</div>' +
+            '<div class="user-name">' + u.username + ' ' + roleTag + ' ' + subTag + '</div>' +
+            '<div class="user-info">\u521B\u5EFA\u4E8E: ' + (u.isAdmin ? '\u7CFB\u7EDF\u521D\u59CB\u5316' : new Date(u.createdAt).toLocaleDateString('zh-CN')) + '</div>' +
             (u.lastLogin ? '<div class="user-info">\u6700\u540E\u767B\u5F55: ' + new Date(u.lastLogin).toLocaleString('zh-CN') + '</div>' : '') +
             (u.customNote ? '<div class="user-info">\u5907\u6CE8: ' + u.customNote + '</div>' : '') +
             subInfo +
             '<div class="actions">' +
+              (u.isAdmin ? 
+              '<p style="font-size:11px;color:#999;text-align:center;width:100%;margin-top:5px;">\u7BA1\u7406\u5458\u8D26\u6237\u4E0D\u53EF\u5728\u7EBF\u7F16\u8F91</p>' :
               '<button onclick="editUser(\\'' + u.username + '\\')">\u270F\uFE0F \u7F16\u8F91</button>' +
               '<button onclick="bindSubscription(\\'' + u.username + '\\')">\u{1F517} \u7ED1\u5B9A</button>' +
               '<button onclick="syncUser(\\'' + u.username + '\\')"' + (!u.subscriptionConfig ? ' disabled' : '') + '>\u{1F504} \u540C\u6B65</button>' +
-              '<button onclick="deleteUser(\\'' + u.username + '\\')">\u{1F5D1}\uFE0F \u5220\u9664</button>' +
+              '<button onclick="deleteUser(\\'' + u.username + '\\')">\u{1F5D1}\uFE0F \u5220\u9664</button>') +
             '</div>';
           grid.appendChild(card);
         });
@@ -13054,6 +13066,8 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
     
     // \u9875\u9762\u52A0\u8F7D
     document.addEventListener('DOMContentLoaded', function() {
+      // \u8BB0\u5F55\u539F\u59CB\u5E8F\u53F7
+      allUsersData.forEach((u, i) => { u._index = i + 1; });
       loadAutoSyncConfig();
       // \u6062\u590D\u89C6\u56FE\u6A21\u5F0F\u6309\u94AE\u72B6\u6001
       if (currentUserView === 'list') {
@@ -13184,10 +13198,9 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
         return 0;
       });
       
-      document.getElementById('userCountLabel').textContent = filtered.length + 1;
+      document.getElementById('userCountLabel').textContent = filtered.length;
       
       var grid = document.getElementById('usersGrid');
-      var adminCard = grid.querySelector('.admin-card');
       grid.innerHTML = '';
       
       if (currentUserView === 'list') {
@@ -13196,6 +13209,7 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
         grid.className = '';
         var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
           '<thead><tr style="background:#f8f9fa;text-align:left;">' +
+          '<th style="padding:10px 8px;border-bottom:2px solid #ddd;width:40px;">#</th>' +
           '<th style="padding:10px 8px;border-bottom:2px solid #ddd;">\u7528\u6237\u540D</th>' +
           '<th style="padding:10px 8px;border-bottom:2px solid #ddd;">\u7EC4\u5408</th>' +
           '<th style="padding:10px 8px;border-bottom:2px solid #ddd;">Token</th>' +
@@ -13210,20 +13224,22 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
           if (u.subscriptionConfig) {
             subTag = u.lastSyncResult ? getExpireTagHtml(u.lastSyncResult.earliestExpire) : '<span class="tag tag-warning">\u5F85\u540C\u6B65</span>';
           } else {
-            subTag = '<span class="tag tag-no-sub">\u672A\u7ED1\u5B9A</span>';
+            subTag = u.isAdmin ? '<span class="tag tag-admin">\u7CFB\u7EDF\u7BA1\u7406</span>' : '<span class="tag tag-no-sub">\u672A\u7ED1\u5B9A</span>';
           }
-          html += '<tr style="border-bottom:1px solid #eee;">' +
-            '<td style="padding:8px;font-weight:500;">' + u.username + (u.customNote ? ' <span style="color:#999;font-size:11px;">(' + u.customNote + ')</span>' : '') + '</td>' +
+          html += '<tr style="border-bottom:1px solid #eee;' + (u.isAdmin ? 'background:#fffafa;' : '') + '">' +
+            '<td style="padding:8px;color:#667eea;font-weight:bold;font-family:monospace;font-size:14px;">#' + u._index + '</td>' +
+            '<td style="padding:8px;font-weight:500;">' + u.username + (u.isAdmin ? ' <span class="tag tag-admin" style="font-size:10px;padding:1px 4px;">\u7BA1\u7406\u5458</span>' : '') + (u.customNote ? ' <span style="color:#999;font-size:11px;">(' + u.customNote + ')</span>' : '') + '</td>' +
             '<td style="padding:8px;">' + (u.subscriptionConfig ? u.subscriptionConfig.collectionName : '-') + '</td>' +
             '<td style="padding:8px;"><code style="font-size:11px;background:#f0f0f0;padding:1px 4px;border-radius:3px;">' + (u.subscriptionConfig ? u.subscriptionConfig.token : '-') + '</code></td>' +
             '<td style="padding:8px;">' + (u.lastSyncResult ? u.lastSyncResult.nodeCount + ' \u4E2A' : '-') + '</td>' +
             '<td style="padding:8px;">' + subTag + '</td>' +
-            '<td style="padding:8px;font-size:12px;color:#666;">' + (u.lastSyncResult ? new Date(u.lastSyncResult.lastSync).toLocaleString('zh-CN') : '-') + '</td>' +
+            '<td style="padding:8px;font-size:12px;color:#666;">' + (u.lastSyncResult ? new Date(u.lastSyncResult.lastSync).toLocaleString('zh-CN') : (u.isAdmin ? '\u5185\u7F6E\u8D26\u6237' : '-')) + '</td>' +
             '<td style="padding:8px;white-space:nowrap;">' +
+              (u.isAdmin ? '-' :
               '<button onclick="editUser(\\\\\\'' + u.username + '\\\\\\')" style="border:1px solid #ddd;background:white;border-radius:4px;cursor:pointer;padding:3px 8px;font-size:11px;margin-right:4px;">\u270F\uFE0F</button>' +
               '<button onclick="bindSubscription(\\\\\\'' + u.username + '\\\\\\')" style="border:1px solid #ddd;background:white;border-radius:4px;cursor:pointer;padding:3px 8px;font-size:11px;margin-right:4px;">\u{1F517}</button>' +
               '<button onclick="syncUser(\\\\\\'' + u.username + '\\\\\\')"' + (!u.subscriptionConfig ? ' disabled' : '') + ' style="border:1px solid #ddd;background:white;border-radius:4px;cursor:pointer;padding:3px 8px;font-size:11px;margin-right:4px;">\u{1F504}</button>' +
-              '<button onclick="deleteUser(\\\\\\'' + u.username + '\\\\\\')" style="border:1px solid #ddd;background:white;border-radius:4px;cursor:pointer;padding:3px 8px;font-size:11px;">\u{1F5D1}\uFE0F</button>' +
+              '<button onclick="deleteUser(\\\\\\'' + u.username + '\\\\\\')" style="border:1px solid #ddd;background:white;border-radius:4px;cursor:pointer;padding:3px 8px;font-size:11px;">\u{1F5D1}\uFE0F</button>') +
             '</td>' +
             '</tr>';
         });
@@ -13233,14 +13249,13 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
         // \u5361\u7247\u89C6\u56FE
         grid.style.display = 'grid';
         grid.className = 'users-grid';
-        if (adminCard) grid.appendChild(adminCard);
         
         filtered.forEach(function(u) {
           var subTag = '';
           if (u.subscriptionConfig) {
             subTag = u.lastSyncResult ? getExpireTagHtml(u.lastSyncResult.earliestExpire) : '<span class="tag tag-warning">\u5F85\u540C\u6B65</span>';
           } else {
-            subTag = '<span class="tag tag-no-sub">\u672A\u7ED1\u5B9A</span>';
+            subTag = u.isAdmin ? '<span class="tag tag-admin">\u7CFB\u7EDF\u7BA1\u7406</span>' : '<span class="tag tag-no-sub">\u672A\u7ED1\u5B9A</span>';
           }
           
           var subInfo = '';
@@ -13254,27 +13269,30 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
                 : '<div style="color:#f39c12;">\u5C1A\u672A\u540C\u6B65</div>') +
               '</div>';
           } else {
-            subInfo = '<div class="subscription-info" style="color:#999;">\u672A\u7ED1\u5B9A\u8BA2\u9605\u94FE\u63A5</div>';
+            subInfo = u.isAdmin ? '<div class="subscription-info" style="color:#666;">\u7BA1\u7406\u6240\u6709\u7528\u6237\u8BA2\u9605\u5206\u53D1</div>' : '<div class="subscription-info" style="color:#999;">\u672A\u7ED1\u5B9A\u8BA2\u9605\u94FE\u63A5</div>';
           }
           
           
           var card = document.createElement('div');
-          card.className = 'user-card';
+          card.className = 'user-card' + (u.isAdmin ? ' admin-card' : '');
           card.id = 'user-' + u.username;
           
           var roleTag = u.membershipLevel ? '<span class="tag" style="background:#9b59b6;color:white;">' + u.membershipLevel + '</span>' : '';
           if (u.isAdmin) roleTag += ' <span class="tag tag-admin">\u7BA1\u7406\u5458</span>';
           
-          card.innerHTML = '<div class="user-name">' + u.username + ' ' + roleTag + ' ' + subTag + '</div>' +
-            '<div class="user-info">\u521B\u5EFA\u4E8E: ' + new Date(u.createdAt).toLocaleDateString('zh-CN') + '</div>' +
+          card.innerHTML = '<div style="position:absolute;top:12px;right:12px;font-size:11px;font-weight:800;color:#fff;background:#667eea;padding:2px 8px;border-radius:12px;box-shadow:0 2px 4px rgba(102,126,234,0.3);font-family:monospace;">#' + u._index + '</div>' +
+            '<div class="user-name">' + u.username + ' ' + roleTag + ' ' + subTag + '</div>' +
+            '<div class="user-info">\u521B\u5EFA\u4E8E: ' + (u.isAdmin ? '\u7CFB\u7EDF\u521D\u59CB\u5316' : new Date(u.createdAt).toLocaleDateString('zh-CN')) + '</div>' +
             (u.lastLogin ? '<div class="user-info">\u6700\u540E\u767B\u5F55: ' + new Date(u.lastLogin).toLocaleString('zh-CN') + '</div>' : '') +
             (u.customNote ? '<div class="user-info">\u5907\u6CE8: ' + u.customNote + '</div>' : '') +
             subInfo +
             '<div class="actions">' +
+              (u.isAdmin ? 
+              '<p style="font-size:11px;color:#999;text-align:center;width:100%;margin-top:5px;">\u7BA1\u7406\u5458\u8D26\u6237\u4E0D\u53EF\u5728\u7EBF\u7F16\u8F91</p>' :
               '<button onclick="editUser(\\\\\\'' + u.username + '\\\\\\')">\u270F\uFE0F \u7F16\u8F91</button>' +
               '<button onclick="bindSubscription(\\\\\\'' + u.username + '\\\\\\')">\u{1F517} \u7ED1\u5B9A</button>' +
               '<button onclick="syncUser(\\\\\\'' + u.username + '\\\\\\')"' + (!u.subscriptionConfig ? ' disabled' : '') + '>\u{1F504} \u540C\u6B65</button>' +
-              '<button onclick="deleteUser(\\\\\\'' + u.username + '\\\\\\')">\u{1F5D1}\uFE0F \u5220\u9664</button>' +
+              '<button onclick="deleteUser(\\\\\\'' + u.username + '\\\\\\')">\u{1F5D1}\uFE0F \u5220\u9664</button>') +
             '</div>';
           grid.appendChild(card);
         });
@@ -14132,16 +14150,24 @@ function renderAdminPage(adminUsername, users, syncResult, syncSecret) {
   <\/script>
 
 </body>
-</html>`])), users.length + 1, adminUsername, syncResult?.nodeCount || 0, syncResult?.earliestExpire || "\u672A\u77E5", raw(JSON.stringify(users.map((u) => ({
-    username: u.username,
-    isAdmin: u.isAdmin,
-    createdAt: u.createdAt,
-    lastLogin: u.lastLogin,
-    customNote: u.customNote,
-    membershipLevel: u.membershipLevel,
-    subscriptionConfig: u.subscriptionConfig || null,
-    lastSyncResult: u.lastSyncResult || null
-  })) || []).replace(/</g, "\\u003c")));
+</html>`])), users.length + 1, adminUsername, syncResult?.nodeCount || 0, syncResult?.earliestExpire || "\u672A\u77E5", raw(JSON.stringify([
+    {
+      username: adminUsername,
+      isAdmin: true,
+      createdAt: "\u7CFB\u7EDF\u7BA1\u7406\u5458",
+      membershipLevel: "VIP\u7528\u6237"
+    },
+    ...users.map((u) => ({
+      username: u.username,
+      isAdmin: u.isAdmin,
+      createdAt: u.createdAt,
+      lastLogin: u.lastLogin,
+      customNote: u.customNote,
+      membershipLevel: u.membershipLevel,
+      subscriptionConfig: u.subscriptionConfig || null,
+      lastSyncResult: u.lastSyncResult || null
+    }))
+  ]).replace(/</g, "\\u003c")));
 }
 function getExpireLabel(expireDate) {
   if (!expireDate) return "";
