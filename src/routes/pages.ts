@@ -1803,7 +1803,7 @@ function renderAdminPage(
             subTag = u.isAdmin ? '<span class="tag tag-admin">系统管理</span>' : '<span class="tag tag-no-sub">未绑定</span>';
           }
           html += '<tr style="border-bottom:1px solid #eee;' + (u.isAdmin ? 'background:#fffafa;' : '') + '">' +
-            '<td style="padding:8px;color:#999;font-weight:bold;">' + u._index + '</td>' +
+            '<td style="padding:8px;color:#667eea;font-weight:bold;font-family:monospace;font-size:14px;">#' + u._index + '</td>' +
             '<td style="padding:8px;font-weight:500;">' + u.username + (u.isAdmin ? ' <span class="tag tag-admin" style="font-size:10px;padding:1px 4px;">管理员</span>' : '') + (u.customNote ? ' <span style="color:#999;font-size:11px;">(' + u.customNote + ')</span>' : '') + '</td>' +
             '<td style="padding:8px;">' + (u.subscriptionConfig ? u.subscriptionConfig.collectionName : '-') + '</td>' +
             '<td style="padding:8px;"><code style="font-size:11px;background:#f0f0f0;padding:1px 4px;border-radius:3px;">' + (u.subscriptionConfig ? u.subscriptionConfig.token : '-') + '</code></td>' +
@@ -1856,7 +1856,7 @@ function renderAdminPage(
           var roleTag = u.membershipLevel ? '<span class="tag" style="background:#9b59b6;color:white;">' + u.membershipLevel + '</span>' : '';
           if (u.isAdmin) roleTag += ' <span class="tag tag-admin">管理员</span>';
           
-          card.innerHTML = '<div style="position:absolute;top:10px;right:10px;font-size:16px;font-weight:bold;color:rgba(0,0,0,0.05);">#' + u._index + '</div>' +
+          card.innerHTML = '<div style="position:absolute;top:12px;right:12px;font-size:11px;font-weight:800;color:#fff;background:#667eea;padding:2px 8px;border-radius:12px;box-shadow:0 2px 4px rgba(102,126,234,0.3);font-family:monospace;">#' + u._index + '</div>' +
             '<div class="user-name">' + u.username + ' ' + roleTag + ' ' + subTag + '</div>' +
             '<div class="user-info">创建于: ' + (u.isAdmin ? '系统初始化' : new Date(u.createdAt).toLocaleDateString('zh-CN')) + '</div>' +
             (u.lastLogin ? '<div class="user-info">最后登录: ' + new Date(u.lastLogin).toLocaleString('zh-CN') + '</div>' : '') +
